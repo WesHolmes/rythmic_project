@@ -69,7 +69,7 @@ A modern, AI-powered project management application built with Flask. Organize y
 
 4. **Set up environment variables**
    ```bash
-   cp rhythmic-project/.env.example .env
+   cp env.example .env
    # Edit .env with your configuration
    ```
 

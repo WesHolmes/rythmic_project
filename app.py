@@ -21,6 +21,15 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-i
 database_url = os.environ.get('DATABASE_URL', 'sqlite:///instance/rhythmic.db')
 if database_url.startswith('postgres://'):
     database_url = database_url.replace('postgres://', 'postgresql://', 1)
+
+# Handle SQLite relative paths
+if database_url.startswith('sqlite:///') and not database_url.startswith('sqlite:////'):
+    # Convert relative path to absolute path
+    db_path = database_url.replace('sqlite:///', '')
+    if not os.path.isabs(db_path):
+        db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), db_path)
+        database_url = f'sqlite:///{db_path}'
+
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 

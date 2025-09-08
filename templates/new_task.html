@@ -103,6 +103,75 @@
                     </select>
                 </div>
 
+                <!-- Risk Assessment Section -->
+                <div class="border-t border-gray-700 pt-6">
+                    <h3 class="text-lg font-semibold text-white mb-4">
+                        <i class="fas fa-exclamation-triangle mr-2 text-yellow-400"></i>
+                        Risk Assessment
+                    </h3>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label for="risk_level" class="block text-sm font-medium text-gray-300 mb-2">
+                                Risk Level
+                            </label>
+                            <select id="risk_level" name="risk_level"
+                                    class="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200">
+                                <option value="low">Low Risk</option>
+                                <option value="medium">Medium Risk</option>
+                                <option value="high">High Risk</option>
+                                <option value="critical">Critical Risk</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <label for="risk_description" class="block text-sm font-medium text-gray-300 mb-2">
+                            Risk Description
+                        </label>
+                        <textarea id="risk_description" name="risk_description" rows="3"
+                                  class="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                                  placeholder="Describe potential risks or challenges..."></textarea>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <label for="mitigation_plan" class="block text-sm font-medium text-gray-300 mb-2">
+                            Mitigation Plan
+                        </label>
+                        <textarea id="mitigation_plan" name="mitigation_plan" rows="3"
+                                  class="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                                  placeholder="Describe how to mitigate identified risks..."></textarea>
+                    </div>
+                </div>
+
+                <!-- Labels Section -->
+                <div class="border-t border-gray-700 pt-6">
+                    <label class="block text-sm font-medium text-gray-300 mb-2">
+                        Labels
+                    </label>
+                    <div class="space-y-3">
+                        {% if labels %}
+                            <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                {% for label in labels %}
+                                <label class="flex items-center space-x-3 p-3 bg-gray-800/30 border border-gray-700 rounded-xl hover:bg-gray-800/50 transition-all duration-200 cursor-pointer">
+                                    <input type="checkbox" name="labels" value="{{ label.id }}" class="rounded border-gray-600 text-blue-600 focus:ring-blue-500">
+                                    <div class="flex items-center space-x-2">
+                                        <i class="{{ label.icon }}" style="color: {{ label.color }}"></i>
+                                        <span class="text-white text-sm">{{ label.name }}</span>
+                                    </div>
+                                </label>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="text-center py-6 text-gray-400">
+                                <i class="fas fa-tags text-2xl mb-2"></i>
+                                <p>No labels created yet</p>
+                                <p class="text-sm">Create labels in the project settings to organize your tasks</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
                 <div class="flex justify-end space-x-4 pt-4">
                     <a href="{{ url_for('view_project', id=project.id) }}" class="px-6 py-3 border border-gray-600 rounded-xl text-gray-300 hover:bg-gray-800/50 hover:text-white transition-all duration-200">
                         Cancel

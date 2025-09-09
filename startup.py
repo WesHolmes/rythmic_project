@@ -3,16 +3,6 @@
 Startup script for Azure App Service deployment
 """
 import os
-import sys
-
-# Configure for Azure
-try:
-    from azure_config import configure_for_azure
-    configure_for_azure()
-except ImportError:
-    pass
-
-# Import the Flask app
 from app import app, db
 
 # Create database tables if they don't exist

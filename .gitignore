@@ -75,5 +75,27 @@ npm-debug.log*
 *.beam
 a.out
 
+# Azure publish profiles
+*.PublishSettings
+*.pubxml
+*.pubxml.user
+
+# Secrets and sensitive files
+secrets.json
+config.json
+credentials.json
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Test files with sensitive data
+test_database_config.py
+
+# Backup files
+*.bak
+*.backup
+*.tmp
+
 # Other
 META-INF/

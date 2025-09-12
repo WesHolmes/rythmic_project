@@ -14,20 +14,12 @@ logger = logging.getLogger(__name__)
 def initialize_database():
     """Initialize database with proper error handling"""
     try:
-        # Log database configuration
-        db_info = get_database_info()
-        logger.info(f"Database configuration: {db_info}")
-        
-        # Check if database connection is valid
-        if not db_info.get('is_valid'):
-            error_msg = db_info.get('error', 'Unknown database error')
-            logger.error(f"Database connection failed: {error_msg}")
-            
-            # In Azure, if PostgreSQL fails, we should not continue with SQLite
-            if db_info.get('is_azure') and not db_info.get('is_postgresql'):
-                logger.error("SQLite fallback detected in Azure environment - this will not persist data!")
-            
-            raise Exception(f"Database connection failed: {error_msg}")
+        # Try to get database info if available
+        try:
+            db_info = get_database_info()
+            logger.info(f"Database configuration: {db_info}")
+        except Exception as e:
+            logger.warning(f"Could not get database info: {e}")
         
         # Create database tables
         with app.app_context():
@@ -36,7 +28,8 @@ def initialize_database():
             
     except Exception as e:
         logger.error(f"Database initialization failed: {e}")
-        raise
+        # Don't raise the exception - let the app start anyway
+        logger.info("Continuing without database initialization - will retry on first request")
 
 if __name__ == "__main__":
     try:

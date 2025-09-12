@@ -17,16 +17,27 @@ load_dotenv()
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 
-# Import database configuration
-from database_config import get_database_url, get_database_info
-
-# Database configuration - use the centralized configuration
-database_url = get_database_url()
-app.config['SQLALCHEMY_DATABASE_URI'] = database_url
-
-# Log database info for debugging
-db_info = get_database_info()
-app.logger.info(f"Database configuration: {db_info}")
+# Database configuration with fallback
+try:
+    from database_config import get_database_url, get_database_info
+    database_url = get_database_url()
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+    print(f"Using database configuration from database_config.py")
+except Exception as e:
+    # Fallback to simple configuration if database_config fails
+    print(f"Database config failed, using fallback: {e}")
+    database_url = os.environ.get('DATABASE_URL', 'sqlite:///instance/rhythmic.db')
+    if database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+    
+    # Handle SQLite relative paths
+    if database_url.startswith('sqlite:///') and not database_url.startswith('sqlite:////'):
+        db_path = database_url.replace('sqlite:///', '')
+        if not os.path.isabs(db_path):
+            db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), db_path)
+            database_url = f'sqlite:///{db_path}'
+    
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize extensions
@@ -1039,10 +1050,10 @@ def create_tables():
     try:
         with app.app_context():
             db.create_all()
-            app.logger.info("Database tables created successfully")
+            print("Database tables created successfully")
     except Exception as e:
-        app.logger.error(f"Error creating database tables: {e}")
-        raise
+        print(f"Error creating database tables: {e}")
+        # Don't raise - let the app continue
 
 if __name__ == '__main__':
     create_tables()

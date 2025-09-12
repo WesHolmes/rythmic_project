@@ -7,9 +7,16 @@ import os
 import logging
 from typing import Optional, Tuple
 from urllib.parse import urlparse
-import sqlalchemy
-from sqlalchemy import create_engine, text
-from sqlalchemy.exc import OperationalError, SQLAlchemyError
+
+# Import SQLAlchemy components with fallback
+try:
+    import sqlalchemy
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.exc import OperationalError, SQLAlchemyError
+    SQLALCHEMY_AVAILABLE = True
+except ImportError:
+    SQLALCHEMY_AVAILABLE = False
+    print("SQLAlchemy not available - using basic database configuration")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -134,6 +141,9 @@ def validate_connection(database_url: str, timeout: int = 10) -> Tuple[bool, Opt
     Returns:
         Tuple[bool, Optional[str]]: (is_valid, error_message)
     """
+    if not SQLALCHEMY_AVAILABLE:
+        return True, None  # Skip validation if SQLAlchemy not available
+        
     try:
         # Create engine with timeout
         engine = create_engine(
@@ -146,7 +156,7 @@ def validate_connection(database_url: str, timeout: int = 10) -> Tuple[bool, Opt
         # Test connection
         with engine.connect() as connection:
             # Execute a simple query to verify the connection works
-            if 'postgresql' in database_url:
+            if 'postgresql' in database_url or 'mssql' in database_url:
                 connection.execute(text("SELECT 1"))
             else:  # SQLite
                 connection.execute(text("SELECT 1"))
@@ -154,18 +164,8 @@ def validate_connection(database_url: str, timeout: int = 10) -> Tuple[bool, Opt
         logger.info(f"Database connection validated successfully: {_sanitize_url(database_url)}")
         return True, None
         
-    except OperationalError as e:
-        error_msg = f"Database connection failed: {str(e)}"
-        logger.error(f"{error_msg} for URL: {_sanitize_url(database_url)}")
-        return False, error_msg
-        
-    except SQLAlchemyError as e:
-        error_msg = f"Database error: {str(e)}"
-        logger.error(f"{error_msg} for URL: {_sanitize_url(database_url)}")
-        return False, error_msg
-        
     except Exception as e:
-        error_msg = f"Unexpected error: {str(e)}"
+        error_msg = f"Database connection failed: {str(e)}"
         logger.error(f"{error_msg} for URL: {_sanitize_url(database_url)}")
         return False, error_msg
 

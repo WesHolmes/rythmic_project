@@ -33,6 +33,35 @@ def is_azure_environment() -> bool:
     return any(os.environ.get(indicator) for indicator in azure_indicators)
 
 
+def get_azure_sql_url() -> Optional[str]:
+    """
+    Generate Azure SQL Database connection URL from environment variables.
+    
+    Returns:
+        str: Azure SQL connection URL if all required variables are present, None otherwise
+    """
+    # Check for complete DATABASE_URL first
+    database_url = os.environ.get('DATABASE_URL')
+    if database_url:
+        # Handle different SQL Server URL formats
+        if database_url.startswith('mssql://'):
+            return database_url
+        elif database_url.startswith('sqlserver://'):
+            return database_url.replace('sqlserver://', 'mssql+pyodbc://', 1)
+        return database_url
+    
+    # Build from individual components for Azure SQL
+    server = os.environ.get('AZURE_SQL_SERVER')  # e.g., myserver.database.windows.net
+    user = os.environ.get('AZURE_SQL_USER')
+    password = os.environ.get('AZURE_SQL_PASSWORD')
+    database = os.environ.get('AZURE_SQL_DATABASE')
+    
+    if all([server, user, password, database]):
+        # Azure SQL connection string with proper driver and SSL
+        return f"mssql+pyodbc://{user}:{password}@{server}:1433/{database}?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=yes&TrustServerCertificate=no&Connection+Timeout=30"
+    
+    return None
+
 def get_postgresql_url() -> Optional[str]:
     """
     Generate PostgreSQL connection URL from environment variables.
@@ -70,16 +99,26 @@ def get_sqlite_url() -> str:
     Returns:
         str: SQLite connection URL
     """
-    # Default SQLite path
-    sqlite_path = os.environ.get('SQLITE_PATH', 'instance/rhythmic.db')
+    # Default SQLite path - use Azure-compatible location if in Azure
+    if is_azure_environment():
+        # Use Azure's temporary storage directory
+        sqlite_path = os.environ.get('SQLITE_PATH', '/tmp/rhythmic.db')
+    else:
+        sqlite_path = os.environ.get('SQLITE_PATH', 'instance/rhythmic.db')
     
     # Convert relative path to absolute path if needed
     if not os.path.isabs(sqlite_path):
         base_dir = os.path.dirname(os.path.abspath(__file__))
         sqlite_path = os.path.join(base_dir, sqlite_path)
-        
-        # Ensure the directory exists
+    
+    # Ensure the directory exists
+    try:
         os.makedirs(os.path.dirname(sqlite_path), exist_ok=True)
+    except (OSError, PermissionError) as e:
+        logger.warning(f"Could not create directory for SQLite: {e}")
+        # Fallback to /tmp in Azure
+        if is_azure_environment():
+            sqlite_path = '/tmp/rhythmic.db'
     
     return f"sqlite:///{sqlite_path}"
 
@@ -136,15 +175,31 @@ def get_database_url() -> str:
     Get the appropriate database URL based on environment and configuration.
     
     Priority order:
-    1. PostgreSQL (if configured and in Azure or explicitly requested)
-    2. SQLite (fallback for local development)
+    1. Azure SQL Database (if configured)
+    2. PostgreSQL (if configured)
+    3. SQLite (fallback for local development)
     
     Returns:
         str: Database connection URL
     """
-    # Try PostgreSQL first if we're in Azure or have PostgreSQL config
-    postgresql_url = get_postgresql_url()
+    # Try Azure SQL Database first
+    azure_sql_url = get_azure_sql_url()
+    if azure_sql_url:
+        is_valid, error = validate_connection(azure_sql_url)
+        if is_valid:
+            logger.info("Using Azure SQL Database")
+            return azure_sql_url
+        else:
+            logger.warning(f"Azure SQL Database connection failed: {error}")
+            
+            # In Azure, we should not fall back to SQLite as it won't persist
+            if is_azure_environment():
+                logger.error("Azure SQL Database connection failed in Azure environment.")
+                # Still return Azure SQL URL to let the application handle the error appropriately
+                return azure_sql_url
     
+    # Try PostgreSQL as fallback
+    postgresql_url = get_postgresql_url()
     if postgresql_url:
         is_valid, error = validate_connection(postgresql_url)
         if is_valid:
@@ -184,6 +239,7 @@ def get_database_info() -> dict:
         'url': _sanitize_url(database_url),
         'scheme': parsed_url.scheme,
         'is_azure': is_azure_environment(),
+        'is_azure_sql': 'mssql' in database_url or 'sqlserver' in database_url,
         'is_postgresql': 'postgresql' in database_url,
         'is_sqlite': 'sqlite' in database_url,
     }

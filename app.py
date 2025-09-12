@@ -17,20 +17,16 @@ load_dotenv()
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 
-# Database configuration - use environment variable or default to SQLite
-database_url = os.environ.get('DATABASE_URL', 'sqlite:///instance/rhythmic.db')
-if database_url.startswith('postgres://'):
-    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+# Import database configuration
+from database_config import get_database_url, get_database_info
 
-# Handle SQLite relative paths
-if database_url.startswith('sqlite:///') and not database_url.startswith('sqlite:////'):
-    # Convert relative path to absolute path
-    db_path = database_url.replace('sqlite:///', '')
-    if not os.path.isabs(db_path):
-        db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), db_path)
-        database_url = f'sqlite:///{db_path}'
-
+# Database configuration - use the centralized configuration
+database_url = get_database_url()
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+
+# Log database info for debugging
+db_info = get_database_info()
+app.logger.info(f"Database configuration: {db_info}")
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize extensions
@@ -1038,7 +1034,16 @@ def would_create_circular_dependency(task_id, depends_on_id):
     
     return False
 
+def create_tables():
+    """Create database tables if they don't exist"""
+    try:
+        with app.app_context():
+            db.create_all()
+            app.logger.info("Database tables created successfully")
+    except Exception as e:
+        app.logger.error(f"Error creating database tables: {e}")
+        raise
+
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
+    create_tables()
     app.run(debug=True)

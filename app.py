@@ -42,6 +42,16 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize extensions
 db = SQLAlchemy(app)
+
+# Initialize database tables
+try:
+    with app.app_context():
+        db.create_all()
+        print("Database tables created successfully")
+except Exception as e:
+    print(f"Error creating database tables: {e}")
+    # Don't raise - let the app continue
+
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'

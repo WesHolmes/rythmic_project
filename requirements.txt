@@ -11,3 +11,4 @@ pandas==2.2.2
 openai==1.35.15
 gunicorn==22.0.0
 pyodbc==5.1.0
+pymssql==2.3.1

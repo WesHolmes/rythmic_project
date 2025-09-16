@@ -43,41 +43,6 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # Initialize extensions
 db = SQLAlchemy(app)
 
-# Initialize database tables
-try:
-    with app.app_context():
-        db.create_all()
-        print("Database tables created successfully")
-except Exception as e:
-    print(f"Error creating database tables: {e}")
-    # Don't raise - let the app continue
-
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = 'login'
-
-# Initialize OAuth
-oauth = OAuth(app)
-google = oauth.register(
-    name='google',
-    client_id=os.environ.get('GOOGLE_CLIENT_ID'),
-    client_secret=os.environ.get('GOOGLE_CLIENT_SECRET'),
-    server_metadata_url='https://accounts.google.com/.well-known/openid_configuration',
-    client_kwargs={
-        'scope': 'openid email profile'
-    }
-)
-
-microsoft = oauth.register(
-    name='microsoft',
-    client_id=os.environ.get('OUTLOOK_CLIENT_ID'),
-    client_secret=os.environ.get('OUTLOOK_CLIENT_SECRET'),
-    server_metadata_url='https://login.microsoftonline.com/common/v2.0/.well-known/openid_configuration',
-    client_kwargs={
-        'scope': 'openid email profile'
-    }
-)
-
 # Database Models
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -170,6 +135,41 @@ class Task(db.Model):
     # Dependency relationships
     dependencies = db.relationship('TaskDependency', foreign_keys='TaskDependency.task_id', back_populates='task')
     dependents = db.relationship('TaskDependency', foreign_keys='TaskDependency.depends_on_id', back_populates='depends_on')
+
+# Initialize database tables
+try:
+    with app.app_context():
+        db.create_all()
+        print("Database tables created successfully")
+except Exception as e:
+    print(f"Error creating database tables: {e}")
+    # Don't raise - let the app continue
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+# Initialize OAuth
+oauth = OAuth(app)
+google = oauth.register(
+    name='google',
+    client_id=os.environ.get('GOOGLE_CLIENT_ID'),
+    client_secret=os.environ.get('GOOGLE_CLIENT_SECRET'),
+    server_metadata_url='https://accounts.google.com/.well-known/openid_configuration',
+    client_kwargs={
+        'scope': 'openid email profile'
+    }
+)
+
+microsoft = oauth.register(
+    name='microsoft',
+    client_id=os.environ.get('OUTLOOK_CLIENT_ID'),
+    client_secret=os.environ.get('OUTLOOK_CLIENT_SECRET'),
+    server_metadata_url='https://login.microsoftonline.com/common/v2.0/.well-known/openid_configuration',
+    client_kwargs={
+        'scope': 'openid email profile'
+    }
+)
 
 @login_manager.user_loader
 def load_user(user_id):

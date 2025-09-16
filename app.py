@@ -48,7 +48,7 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
     name = db.Column(db.String(100), nullable=False)
-    password_hash = db.Column(db.String(128))
+    password_hash = db.Column(db.String(255))
     provider = db.Column(db.String(50), default='local')  # 'local', 'google', 'microsoft'
     provider_id = db.Column(db.String(120))  # OAuth provider user ID
     avatar_url = db.Column(db.String(200))  # Profile picture URL

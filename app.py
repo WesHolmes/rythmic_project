@@ -498,14 +498,14 @@ google = oauth.register(
     }
 )
 
-microsoft = oauth.register(
-    name='microsoft',
-    client_id=os.environ.get('OUTLOOK_CLIENT_ID'),
-    client_secret=os.environ.get('OUTLOOK_CLIENT_SECRET'),
-    server_metadata_url='https://login.microsoftonline.com/common/v2.0/.well-known/openid_configuration',
-    client_kwargs={
-        'scope': 'openid email profile'
-    }
+github = oauth.register(
+    name='github',
+    client_id=os.environ.get('GITHUB_CLIENT_ID'),
+    client_secret=os.environ.get('GITHUB_CLIENT_SECRET'),
+    access_token_url='https://github.com/login/oauth/access_token',
+    authorize_url='https://github.com/login/oauth/authorize',
+    api_base_url='https://api.github.com/',
+    client_kwargs={'scope': 'user:email'},
 )
 
 @login_manager.user_loader
@@ -1035,10 +1035,10 @@ def login_google():
     redirect_uri = url_for('authorize_google', _external=True)
     return google.authorize_redirect(redirect_uri)
 
-@app.route('/login/microsoft')
-def login_microsoft():
-    redirect_uri = url_for('authorize_microsoft', _external=True)
-    return microsoft.authorize_redirect(redirect_uri)
+@app.route('/login/github')
+def login_github():
+    redirect_uri = url_for('authorize_github', _external=True)
+    return github.authorize_redirect(redirect_uri)
 
 @app.route('/authorize/google')
 def authorize_google():
@@ -1085,20 +1085,28 @@ def authorize_google():
         flash(f'Google authentication failed: {str(e)}')
         return redirect(url_for('login'))
 
-@app.route('/authorize/microsoft')
-def authorize_microsoft():
+@app.route('/authorize/github')
+def authorize_github():
     try:
-        token = microsoft.authorize_access_token()
-        user_info = token.get('userinfo')
+        token = github.authorize_access_token()
+        resp = github.get('user', token=token)
+        user_info = resp.json()
         
-        if user_info:
-            email = user_info.get('email')
-            name = user_info.get('name', email.split('@')[0])
-            provider_id = user_info.get('sub')
-            avatar_url = None  # Microsoft doesn't provide avatar in basic scope
+        email = user_info.get('email')
+        if not email:
+            # Get primary email if not public
+            resp = github.get('user/emails', token=token)
+            emails = resp.json()
+            primary_email = next((e['email'] for e in emails if e['primary']), None)
+            email = primary_email
+        
+        if email:
+            name = user_info.get('name') or user_info.get('login')
+            provider_id = str(user_info.get('id'))
+            avatar_url = user_info.get('avatar_url')
             
             # Check if user exists
-            user = User.query.filter_by(email=email, provider='microsoft').first()
+            user = User.query.filter_by(email=email, provider='github').first()
             
             if not user:
                 # Check if email exists with different provider
@@ -1111,7 +1119,7 @@ def authorize_microsoft():
                 user = User(
                     email=email,
                     name=name,
-                    provider='microsoft',
+                    provider='github',
                     provider_id=provider_id,
                     avatar_url=avatar_url
                 )
@@ -1121,10 +1129,10 @@ def authorize_microsoft():
             login_user(user)
             return redirect(url_for('index'))
         else:
-            flash('Failed to get user information from Microsoft')
+            flash('Failed to get email from GitHub')
             return redirect(url_for('login'))
     except Exception as e:
-        flash(f'Microsoft authentication failed: {str(e)}')
+        flash(f'GitHub authentication failed: {str(e)}')
         return redirect(url_for('login'))
 
 @app.route('/projects')

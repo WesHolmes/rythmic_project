@@ -256,3 +256,401 @@ input[type="file"]::file-selector-button:hover {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
+
+/* Sharing Management Styles */
+.sharing-tab {
+    transition: all 0.2s ease;
+}
+
+.sharing-tab.active {
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    color: white;
+}
+
+.sharing-tab:not(.active) {
+    color: #9ca3af;
+}
+
+.sharing-tab:not(.active):hover {
+    color: #d1d5db;
+    background: rgba(75, 85, 99, 0.3);
+}
+
+.sharing-panel {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Collaborator Item Styles */
+.collaborator-item {
+    transition: all 0.2s ease;
+}
+
+.collaborator-item:hover {
+    transform: translateX(4px);
+}
+
+/* Role Selection Dropdown */
+.role-select {
+    transition: all 0.2s ease;
+}
+
+.role-select:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+/* Activity Log Styles */
+.activity-item {
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.activity-item:hover {
+    transform: translateX(4px);
+}
+
+.activity-item:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: 24px;
+    top: 60px;
+    width: 2px;
+    height: 20px;
+    background: linear-gradient(to bottom, rgba(75, 85, 99, 0.5), transparent);
+}
+
+/* Activity Type Colors */
+.activity-project-shared { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+.activity-collaborator-added { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+.activity-collaborator-removed { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+.activity-role-changed { background: rgba(234, 179, 8, 0.2); color: #eab308; }
+.activity-access-granted { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+.activity-access-revoked { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+.activity-token-generated { background: rgba(168, 85, 247, 0.2); color: #a855f7; }
+.activity-token-used { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+.activity-suspicious-access { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+
+/* Modal Backdrop Blur */
+.backdrop-blur-sm {
+    backdrop-filter: blur(4px);
+}
+
+/* Notification Styles */
+.notification-enter {
+    transform: translateX(100%);
+    opacity: 0;
+}
+
+.notification-enter-active {
+    transform: translateX(0);
+    opacity: 1;
+    transition: all 0.3s ease;
+}
+
+.notification-exit {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+.notification-exit-active {
+    transform: translateX(100%);
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+/* Responsive Sharing Modal */
+@media (max-width: 768px) {
+    .sharing-tab {
+        font-size: 0.875rem;
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .sharing-tab i {
+        display: none;
+    }
+    
+    #sharing-modal .glass,
+    #collaborator-modal .glass,
+    #activity-log-modal .glass {
+        margin: 1rem;
+        max-height: calc(100vh - 2rem);
+    }
+}
+
+/* Loading Spinner for Sharing */
+.sharing-spinner {
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-left: 2px solid #3b82f6;
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    animation: spin 1s linear infinite;
+    display: inline-block;
+}
+
+/* Copy Button Animation */
+.copy-success {
+    background: linear-gradient(135deg, #22c55e, #16a34a) !important;
+    transform: scale(1.05);
+}
+
+/* Role Badge Styles */
+.role-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.role-badge:hover {
+    transform: scale(1.05);
+}
+
+/* Permission Grid */
+.permission-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+}
+
+/* Sharing Link Display */
+.sharing-link-display {
+    background: linear-gradient(135deg, rgba(31, 41, 55, 0.8) 0%, rgba(17, 24, 39, 0.8) 100%);
+    border: 1px solid rgba(75, 85, 99, 0.3);
+    backdrop-filter: blur(10px);
+}
+
+/* Activity Timeline */
+.activity-timeline {
+    position: relative;
+}
+
+.activity-timeline::before {
+    content: '';
+    position: absolute;
+    left: 20px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, #3b82f6, transparent);
+}
+
+/* Collaborator Avatar */
+.collaborator-avatar {
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+/* Status Indicators */
+.status-pending {
+    color: #f59e0b;
+}
+
+.status-accepted {
+    color: #10b981;
+}
+
+.status-declined {
+    color: #ef4444;
+}
+
+/* Hover Effects for Interactive Elements */
+.interactive-hover {
+    transition: all 0.2s ease;
+}
+
+.interactive-hover:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Focus States for Accessibility */
+.focus-ring:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+}
+
+/* Sharing Success States */
+.sharing-success {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(16, 185, 129, 0.1));
+    border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.sharing-error {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(220, 38, 38, 0.1));
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}/*
+ WebSocket Status Styles */
+.websocket-status {
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.websocket-status.connecting {
+    background: rgba(59, 130, 246, 0.1);
+    color: #60a5fa;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.websocket-status.connected {
+    background: rgba(34, 197, 94, 0.1);
+    color: #4ade80;
+    border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.websocket-status.disconnected {
+    background: rgba(239, 68, 68, 0.1);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.websocket-status.error {
+    background: rgba(245, 101, 101, 0.1);
+    color: #fca5a5;
+    border: 1px solid rgba(245, 101, 101, 0.2);
+}
+
+.websocket-status.project_joined {
+    background: rgba(168, 85, 247, 0.1);
+    color: #c084fc;
+    border: 1px solid rgba(168, 85, 247, 0.2);
+}
+
+/* Active Users Styles */
+.active-user {
+    display: flex;
+    align-items: center;
+    padding: 0.25rem 0.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 0.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 0.75rem;
+    color: #d1d5db;
+}
+
+.user-avatar {
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+    margin-right: 0.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.user-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100px;
+}
+
+/* Legacy notification styles - kept for backward compatibility */
+.notification {
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    animation: slideIn 0.3s ease-out;
+    max-width: 300px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+}
+
+.notification.info {
+    background: rgba(59, 130, 246, 0.9);
+    color: white;
+    border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.notification.success {
+    background: rgba(34, 197, 94, 0.9);
+    color: white;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.notification.warning {
+    background: rgba(245, 158, 11, 0.9);
+    color: white;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.notification.error {
+    background: rgba(239, 68, 68, 0.9);
+    color: white;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* Real-time update indicators */
+.task-updating {
+    position: relative;
+    overflow: hidden;
+}
+
+.task-updating::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.2), transparent);
+    animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+    0% {
+        left: -100%;
+    }
+    100% {
+        left: 100%;
+    }
+}
+
+/* Responsive adjustments for WebSocket status */
+@media (max-width: 768px) {
+    .websocket-status {
+        font-size: 0.75rem;
+        padding: 0.375rem 0.75rem;
+    }
+    
+    .active-user {
+        font-size: 0.625rem;
+        padding: 0.25rem;
+    }
+    
+    .user-name {
+        max-width: 60px;
+    }
+    
+    .notification {
+        right: 0.5rem;
+        left: 0.5rem;
+        max-width: none;
+    }
+}

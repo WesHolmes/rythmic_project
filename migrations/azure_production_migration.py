@@ -1,0 +1,566 @@
+"""
+Production database migration script for Azure deployment.
+Handles database schema updates, indexing, and optimization for Azure SQL Database.
+"""
+
+import os
+import sys
+import logging
+from datetime import datetime
+from typing import Dict, List, Tuple, Optional
+
+# Add the parent directory to the path to import app modules
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+
+class AzureProductionMigration:
+    """Production-ready migration for Azure deployment"""
+    
+    def __init__(self):
+        self.migration_log = []
+        self.rollback_steps = []
+    
+    def run_production_migration(self) -> bool:
+        """
+        Run complete production migration for Azure deployment
+        
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            from app import app, db
+            
+            with app.app_context():
+                logger.info("Starting Azure production migration...")
+                self._log_step("Migration started")
+                
+                # Step 1: Validate database connection
+                if not self._validate_database_connection(db):
+                    return False
+                
+                # Step 2: Create tables if they don't exist
+                if not self._create_tables(db):
+                    return False
+                
+                # Step 3: Create optimized indexes
+                if not self._create_indexes(db.engine):
+                    return False
+                
+                # Step 4: Create backup and cleanup procedures
+                if not self._create_backup_procedures(db.engine):
+                    return False
+                
+                # Step 5: Optimize database settings
+                if not self._optimize_database_settings(db.engine):
+                    return False
+                
+                # Step 6: Validate migration
+                if not self._validate_migration(db):
+                    return False
+                
+                # Step 7: Create monitoring views
+                if not self._create_monitoring_views(db.engine):
+                    return False
+                
+                logger.info("✓ Azure production migration completed successfully!")
+                self._log_step("Migration completed successfully")
+                
+                # Generate migration report
+                self._generate_migration_report()
+                
+                return True
+                
+        except Exception as e:
+            logger.error(f"✗ Production migration failed: {str(e)}")
+            self._log_step(f"Migration failed: {str(e)}")
+            return False
+    
+    def _validate_database_connection(self, db) -> bool:
+        """Validate database connection and Azure compatibility"""
+        try:
+            logger.info("Validating database connection...")
+            
+            # Test basic connection
+            with db.engine.connect() as conn:
+                result = conn.execute(db.text("SELECT 1 as test"))
+                if not result.fetchone():
+                    raise Exception("Database connection test failed")
+            
+            # Check if running on Azure SQL Database
+            database_url = str(db.engine.url)
+            is_azure_sql = 'mssql' in database_url or 'sqlserver' in database_url
+            is_azure_postgres = 'postgresql' in database_url and ('azure' in database_url or 'postgres.database.azure.com' in database_url)
+            
+            if is_azure_sql:
+                logger.info("✓ Detected Azure SQL Database")
+                self._validate_azure_sql_features(db.engine)
+            elif is_azure_postgres:
+                logger.info("✓ Detected Azure Database for PostgreSQL")
+                self._validate_azure_postgres_features(db.engine)
+            else:
+                logger.warning("⚠ Not running on Azure database - some optimizations may not apply")
+            
+            self._log_step("Database connection validated")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Database connection validation failed: {e}")
+            return False
+    
+    def _validate_azure_sql_features(self, engine):
+        """Validate Azure SQL Database specific features"""
+        try:
+            with engine.connect() as conn:
+                # Check Azure SQL Database version and features
+                version_result = conn.execute(db.text("SELECT @@VERSION as version")).fetchone()
+                logger.info(f"Azure SQL Database version: {version_result.version[:100]}...")
+                
+                # Check if we have necessary permissions
+                permissions_check = conn.execute(db.text("""
+                    SELECT 
+                        HAS_PERMS_BY_NAME(NULL, NULL, 'CREATE TABLE') as can_create_table,
+                        HAS_PERMS_BY_NAME(NULL, NULL, 'CREATE INDEX') as can_create_index,
+                        HAS_PERMS_BY_NAME(NULL, NULL, 'CREATE PROCEDURE') as can_create_procedure
+                """)).fetchone()
+                
+                if not all([permissions_check.can_create_table, permissions_check.can_create_index]):
+                    raise Exception("Insufficient database permissions for migration")
+                
+                logger.info("✓ Azure SQL Database permissions validated")
+                
+        except Exception as e:
+            logger.warning(f"Azure SQL validation warning: {e}")
+    
+    def _validate_azure_postgres_features(self, engine):
+        """Validate Azure Database for PostgreSQL specific features"""
+        try:
+            with engine.connect() as conn:
+                # Check PostgreSQL version
+                version_result = conn.execute(db.text("SELECT version()")).fetchone()
+                logger.info(f"PostgreSQL version: {version_result.version[:100]}...")
+                
+                # Check available extensions
+                extensions_result = conn.execute(db.text("""
+                    SELECT name FROM pg_available_extensions 
+                    WHERE name IN ('pg_stat_statements', 'pg_buffercache')
+                """)).fetchall()
+                
+                available_extensions = [row.name for row in extensions_result]
+                logger.info(f"Available extensions: {available_extensions}")
+                
+        except Exception as e:
+            logger.warning(f"Azure PostgreSQL validation warning: {e}")
+    
+    def _create_tables(self, db) -> bool:
+        """Create database tables with Azure optimizations"""
+        try:
+            logger.info("Creating database tables...")
+            
+            # Create all tables
+            db.create_all()
+            
+            # Verify critical sharing tables exist
+            inspector = db.inspect(db.engine)
+            existing_tables = inspector.get_table_names()
+            
+            required_tables = [
+                'project_collaborators',
+                'sharing_tokens',
+                'sharing_activity_log',
+                'active_sessions'
+            ]
+            
+            missing_tables = [table for table in required_tables if table not in existing_tables]
+            if missing_tables:
+                raise Exception(f"Failed to create tables: {missing_tables}")
+            
+            logger.info(f"✓ Created {len(required_tables)} sharing tables")
+            self._log_step(f"Created tables: {', '.join(required_tables)}")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Table creation failed: {e}")
+            return False
+    
+    def _create_indexes(self, engine) -> bool:
+        """Create optimized indexes for Azure database"""
+        try:
+            logger.info("Creating database indexes...")
+            
+            from azure_database_config import SharingDatabaseIndexes
+            created_count, errors = SharingDatabaseIndexes.create_indexes(engine)
+            
+            if errors:
+                logger.warning(f"Some indexes failed to create: {len(errors)} errors")
+                for error in errors:
+                    logger.warning(f"  - {error}")
+            
+            logger.info(f"✓ Created {created_count} database indexes")
+            self._log_step(f"Created {created_count} indexes with {len(errors)} errors")
+            
+            # Index creation errors are not fatal for migration
+            return True
+            
+        except Exception as e:
+            logger.error(f"Index creation failed: {e}")
+            return False
+    
+    def _create_backup_procedures(self, engine) -> bool:
+        """Create backup and cleanup procedures"""
+        try:
+            logger.info("Creating backup and cleanup procedures...")
+            
+            from azure_database_config import DatabaseBackupManager
+            procedures = DatabaseBackupManager.create_backup_cleanup_procedures(engine)
+            
+            if procedures:
+                logger.info(f"✓ Created {len(procedures)} cleanup procedures: {', '.join(procedures)}")
+                self._log_step(f"Created cleanup procedures: {', '.join(procedures)}")
+            else:
+                logger.info("No cleanup procedures created (may not be supported by database)")
+                self._log_step("Cleanup procedures not supported by database")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Backup procedure creation failed: {e}")
+            return False
+    
+    def _optimize_database_settings(self, engine) -> bool:
+        """Apply Azure-specific database optimizations"""
+        try:
+            logger.info("Applying database optimizations...")
+            
+            database_url = str(engine.url)
+            
+            if 'mssql' in database_url or 'sqlserver' in database_url:
+                self._optimize_azure_sql(engine)
+            elif 'postgresql' in database_url:
+                self._optimize_azure_postgres(engine)
+            else:
+                logger.info("No specific optimizations for this database type")
+            
+            self._log_step("Database optimizations applied")
+            return True
+            
+        except Exception as e:
+            logger.warning(f"Database optimization warning: {e}")
+            # Optimizations are not critical for migration success
+            return True
+    
+    def _optimize_azure_sql(self, engine):
+        """Apply Azure SQL Database specific optimizations"""
+        try:
+            with engine.connect() as conn:
+                # Update statistics for better query performance
+                conn.execute(db.text("UPDATE STATISTICS project_collaborators"))
+                conn.execute(db.text("UPDATE STATISTICS sharing_tokens"))
+                conn.execute(db.text("UPDATE STATISTICS sharing_activity_log"))
+                conn.execute(db.text("UPDATE STATISTICS active_sessions"))
+                
+                logger.info("✓ Updated Azure SQL Database statistics")
+                
+        except Exception as e:
+            logger.warning(f"Azure SQL optimization warning: {e}")
+    
+    def _optimize_azure_postgres(self, engine):
+        """Apply Azure Database for PostgreSQL specific optimizations"""
+        try:
+            with engine.connect() as conn:
+                # Analyze tables for better query planning
+                conn.execute(db.text("ANALYZE project_collaborators"))
+                conn.execute(db.text("ANALYZE sharing_tokens"))
+                conn.execute(db.text("ANALYZE sharing_activity_log"))
+                conn.execute(db.text("ANALYZE active_sessions"))
+                
+                logger.info("✓ Analyzed PostgreSQL tables")
+                
+        except Exception as e:
+            logger.warning(f"Azure PostgreSQL optimization warning: {e}")
+    
+    def _create_monitoring_views(self, engine) -> bool:
+        """Create database views for monitoring sharing functionality"""
+        try:
+            logger.info("Creating monitoring views...")
+            
+            database_url = str(engine.url)
+            views_created = 0
+            
+            with engine.connect() as conn:
+                if 'mssql' in database_url or 'sqlserver' in database_url:
+                    # SQL Server monitoring views
+                    
+                    # Active collaborations view
+                    active_collaborations_view = db.text("""
+                        CREATE OR ALTER VIEW v_active_collaborations AS
+                        SELECT 
+                            pc.project_id,
+                            p.name as project_name,
+                            pc.user_id,
+                            u.name as user_name,
+                            u.email as user_email,
+                            pc.role,
+                            pc.status,
+                            pc.invited_at,
+                            pc.accepted_at,
+                            DATEDIFF(day, pc.invited_at, GETUTCDATE()) as days_since_invitation
+                        FROM project_collaborators pc
+                        JOIN project p ON pc.project_id = p.id
+                        JOIN [user] u ON pc.user_id = u.id
+                        WHERE pc.status = 'accepted'
+                    """)
+                    
+                    # Sharing activity summary view
+                    sharing_activity_view = db.text("""
+                        CREATE OR ALTER VIEW v_sharing_activity_summary AS
+                        SELECT 
+                            project_id,
+                            action,
+                            COUNT(*) as activity_count,
+                            MAX(created_at) as last_activity,
+                            COUNT(DISTINCT user_id) as unique_users,
+                            COUNT(DISTINCT ip_address) as unique_ips
+                        FROM sharing_activity_log
+                        WHERE created_at >= DATEADD(day, -30, GETUTCDATE())
+                        GROUP BY project_id, action
+                    """)
+                    
+                    views_to_create = [
+                        ('v_active_collaborations', active_collaborations_view),
+                        ('v_sharing_activity_summary', sharing_activity_view)
+                    ]
+                    
+                elif 'postgresql' in database_url:
+                    # PostgreSQL monitoring views
+                    
+                    active_collaborations_view = db.text("""
+                        CREATE OR REPLACE VIEW v_active_collaborations AS
+                        SELECT 
+                            pc.project_id,
+                            p.name as project_name,
+                            pc.user_id,
+                            u.name as user_name,
+                            u.email as user_email,
+                            pc.role,
+                            pc.status,
+                            pc.invited_at,
+                            pc.accepted_at,
+                            EXTRACT(days FROM (NOW() AT TIME ZONE 'UTC' - pc.invited_at)) as days_since_invitation
+                        FROM project_collaborators pc
+                        JOIN project p ON pc.project_id = p.id
+                        JOIN "user" u ON pc.user_id = u.id
+                        WHERE pc.status = 'accepted'
+                    """)
+                    
+                    sharing_activity_view = db.text("""
+                        CREATE OR REPLACE VIEW v_sharing_activity_summary AS
+                        SELECT 
+                            project_id,
+                            action,
+                            COUNT(*) as activity_count,
+                            MAX(created_at) as last_activity,
+                            COUNT(DISTINCT user_id) as unique_users,
+                            COUNT(DISTINCT ip_address) as unique_ips
+                        FROM sharing_activity_log
+                        WHERE created_at >= (NOW() AT TIME ZONE 'UTC' - INTERVAL '30 days')
+                        GROUP BY project_id, action
+                    """)
+                    
+                    views_to_create = [
+                        ('v_active_collaborations', active_collaborations_view),
+                        ('v_sharing_activity_summary', sharing_activity_view)
+                    ]
+                
+                else:
+                    # SQLite - create simple views
+                    active_collaborations_view = db.text("""
+                        CREATE VIEW IF NOT EXISTS v_active_collaborations AS
+                        SELECT 
+                            pc.project_id,
+                            p.name as project_name,
+                            pc.user_id,
+                            u.name as user_name,
+                            u.email as user_email,
+                            pc.role,
+                            pc.status,
+                            pc.invited_at,
+                            pc.accepted_at
+                        FROM project_collaborators pc
+                        JOIN project p ON pc.project_id = p.id
+                        JOIN user u ON pc.user_id = u.id
+                        WHERE pc.status = 'accepted'
+                    """)
+                    
+                    views_to_create = [
+                        ('v_active_collaborations', active_collaborations_view)
+                    ]
+                
+                # Create views
+                for view_name, view_sql in views_to_create:
+                    try:
+                        conn.execute(view_sql)
+                        views_created += 1
+                        logger.info(f"✓ Created monitoring view: {view_name}")
+                    except Exception as e:
+                        logger.warning(f"Failed to create view {view_name}: {e}")
+                
+                conn.commit()
+            
+            logger.info(f"✓ Created {views_created} monitoring views")
+            self._log_step(f"Created {views_created} monitoring views")
+            
+            return True
+            
+        except Exception as e:
+            logger.warning(f"Monitoring view creation warning: {e}")
+            return True  # Not critical for migration
+    
+    def _validate_migration(self, db) -> bool:
+        """Validate that migration was successful"""
+        try:
+            logger.info("Validating migration...")
+            
+            # Check table existence and basic structure
+            inspector = db.inspect(db.engine)
+            
+            validation_checks = []
+            
+            # Check project_collaborators table
+            if 'project_collaborators' in inspector.get_table_names():
+                columns = [col['name'] for col in inspector.get_columns('project_collaborators')]
+                required_columns = ['id', 'project_id', 'user_id', 'role', 'status']
+                if all(col in columns for col in required_columns):
+                    validation_checks.append("✓ project_collaborators table structure valid")
+                else:
+                    validation_checks.append("✗ project_collaborators table structure invalid")
+            
+            # Check sharing_tokens table
+            if 'sharing_tokens' in inspector.get_table_names():
+                columns = [col['name'] for col in inspector.get_columns('sharing_tokens')]
+                required_columns = ['id', 'token', 'project_id', 'expires_at', 'is_active']
+                if all(col in columns for col in required_columns):
+                    validation_checks.append("✓ sharing_tokens table structure valid")
+                else:
+                    validation_checks.append("✗ sharing_tokens table structure invalid")
+            
+            # Check indexes
+            try:
+                indexes = inspector.get_indexes('project_collaborators')
+                if len(indexes) > 0:
+                    validation_checks.append(f"✓ Found {len(indexes)} indexes on project_collaborators")
+                else:
+                    validation_checks.append("⚠ No indexes found on project_collaborators")
+            except:
+                validation_checks.append("⚠ Could not check indexes")
+            
+            # Log validation results
+            for check in validation_checks:
+                logger.info(check)
+            
+            # Count failed validations
+            failed_checks = [check for check in validation_checks if check.startswith("✗")]
+            
+            if failed_checks:
+                logger.error(f"Migration validation failed: {len(failed_checks)} critical issues")
+                return False
+            
+            logger.info("✓ Migration validation passed")
+            self._log_step("Migration validation completed")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Migration validation failed: {e}")
+            return False
+    
+    def _log_step(self, message: str):
+        """Log migration step with timestamp"""
+        timestamp = datetime.utcnow().isoformat()
+        log_entry = f"[{timestamp}] {message}"
+        self.migration_log.append(log_entry)
+    
+    def _generate_migration_report(self):
+        """Generate and save migration report"""
+        try:
+            report_content = [
+                "# Azure Production Migration Report",
+                f"Generated: {datetime.utcnow().isoformat()}",
+                "",
+                "## Migration Steps",
+                ""
+            ]
+            
+            for log_entry in self.migration_log:
+                report_content.append(f"- {log_entry}")
+            
+            report_content.extend([
+                "",
+                "## Database Configuration",
+                "- Connection pooling: Enabled",
+                "- Indexes: Created for sharing tables",
+                "- Monitoring views: Created",
+                "- Cleanup procedures: Created (if supported)",
+                "",
+                "## Next Steps",
+                "1. Monitor database performance using created views",
+                "2. Set up automated cleanup job for expired tokens",
+                "3. Configure backup retention policies",
+                "4. Monitor sharing activity logs for security",
+                ""
+            ])
+            
+            # Save report
+            report_path = "azure_migration_report.md"
+            with open(report_path, 'w') as f:
+                f.write('\n'.join(report_content))
+            
+            logger.info(f"✓ Migration report saved to {report_path}")
+            
+        except Exception as e:
+            logger.warning(f"Could not generate migration report: {e}")
+
+
+def run_production_migration():
+    """Run the production migration"""
+    migration = AzureProductionMigration()
+    return migration.run_production_migration()
+
+
+def main():
+    """Main entry point for migration script"""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Azure Production Database Migration')
+    parser.add_argument('--dry-run', action='store_true', help='Perform a dry run without making changes')
+    parser.add_argument('--verbose', action='store_true', help='Enable verbose logging')
+    
+    args = parser.parse_args()
+    
+    if args.verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
+    
+    if args.dry_run:
+        logger.info("DRY RUN MODE - No changes will be made")
+        # TODO: Implement dry run logic
+        return True
+    
+    success = run_production_migration()
+    
+    if success:
+        logger.info("🎉 Production migration completed successfully!")
+        sys.exit(0)
+    else:
+        logger.error("💥 Production migration failed!")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

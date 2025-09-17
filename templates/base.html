@@ -65,6 +65,21 @@
         {% block content %}{% endblock %}
     </main>
 
+    <!-- Include Activity Log Modal -->
+    {% include 'activity_log_modal.html' %}
+
+    <!-- Socket.IO client library -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    
+    <!-- Shared Notification System -->
+    <script src="{{ url_for('static', filename='js/notifications.js') }}"></script>
+    
+    <!-- WebSocket client for real-time collaboration -->
+    <script src="{{ url_for('static', filename='js/websocket-client.js') }}"></script>
+    
+    <!-- Activity Log Management -->
+    <script src="{{ url_for('static', filename='js/activity-log.js') }}"></script>
+    
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>

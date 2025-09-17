@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Collaboration Invitation</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            line-height: 1.6; 
+            color: #333; 
+            margin: 0; 
+            padding: 0; 
+            background-color: #f5f5f5; 
+        }
+        .container { 
+            max-width: 600px; 
+            margin: 20px auto; 
+            background-color: white; 
+            border-radius: 8px; 
+            overflow: hidden; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+        }
+        .header { 
+            background-color: #3B82F6; 
+            color: white; 
+            padding: 30px 20px; 
+            text-align: center; 
+        }
+        .header h1 { 
+            margin: 0; 
+            font-size: 24px; 
+        }
+        .header p { 
+            margin: 5px 0 0 0; 
+            opacity: 0.9; 
+        }
+        .content { 
+            padding: 30px; 
+        }
+        .project-info { 
+            background-color: #f8f9fa; 
+            padding: 20px; 
+            border-radius: 8px; 
+            margin: 20px 0; 
+            border-left: 4px solid #3B82F6; 
+        }
+        .project-info h3 { 
+            margin-top: 0; 
+            color: #1f2937; 
+        }
+        .button { 
+            display: inline-block; 
+            background-color: #3B82F6; 
+            color: white; 
+            padding: 14px 28px; 
+            text-decoration: none; 
+            border-radius: 6px; 
+            font-weight: bold; 
+            margin: 20px 0; 
+            transition: background-color 0.3s; 
+        }
+        .button:hover { 
+            background-color: #2563EB; 
+        }
+        .personal-message { 
+            background-color: #e3f2fd; 
+            padding: 15px; 
+            border-radius: 6px; 
+            margin: 15px 0; 
+            font-style: italic; 
+            border-left: 3px solid #2196F3; 
+        }
+        .footer { 
+            background-color: #f8f9fa; 
+            text-align: center; 
+            color: #666; 
+            font-size: 12px; 
+            padding: 20px; 
+            border-top: 1px solid #e9ecef; 
+        }
+        .role-badge { 
+            background-color: #10B981; 
+            color: white; 
+            padding: 4px 8px; 
+            border-radius: 4px; 
+            font-size: 12px; 
+            font-weight: bold; 
+            text-transform: uppercase; 
+        }
+        .link-box { 
+            word-break: break-all; 
+            background-color: #f1f1f1; 
+            padding: 10px; 
+            border-radius: 4px; 
+            font-family: monospace; 
+            font-size: 12px; 
+            border: 1px solid #ddd; 
+        }
+        .warning { 
+            background-color: #fff3cd; 
+            border: 1px solid #ffeaa7; 
+            color: #856404; 
+            padding: 12px; 
+            border-radius: 4px; 
+            margin: 15px 0; 
+        }
+        .center { 
+            text-align: center; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{{ app_name }}</h1>
+            <p>Project Collaboration Invitation</p>
+        </div>
+        
+        <div class="content">
+            <h2>You've been invited to collaborate!</h2>
+            <p><strong>{{ inviter_name }}</strong> has invited you to collaborate on a project.</p>
+            
+            <div class="project-info">
+                <h3>{{ project.name }}</h3>
+                <p><strong>Description:</strong> {{ project.description or 'No description provided' }}</p>
+                <p><strong>Your role:</strong> <span class="role-badge">{{ role }}</span></p>
+                <p><strong>Permissions:</strong> You'll be able to {{ role_description }}.</p>
+            </div>
+            
+            {% if personal_message %}
+            <div class="personal-message">
+                <strong>Personal message:</strong><br>
+                {{ personal_message }}
+            </div>
+            {% endif %}
+            
+            <div class="center">
+                <a href="{{ sharing_url }}" class="button">Accept Invitation</a>
+            </div>
+            
+            <div class="warning">
+                <strong>⏰ Important:</strong> This invitation will expire {{ expires_text }}. 
+                Click the button above to accept and start collaborating.
+            </div>
+            
+            <p><strong>Alternative access:</strong> If the button doesn't work, you can copy and paste this link into your browser:</p>
+            <div class="link-box">{{ sharing_url }}</div>
+        </div>
+        
+        <div class="footer">
+            <p>This invitation was sent by {{ inviter_name }} through {{ app_name }}.</p>
+            <p>If you didn't expect this invitation, you can safely ignore this email.</p>
+        </div>
+    </div>
+</body>
+</html>

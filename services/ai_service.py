@@ -9,9 +9,14 @@ class AIAssistant:
     def __init__(self):
         api_key = os.environ.get('OPENAI_API_KEY')
         if not api_key:
-            raise ValueError("OPENAI_API_KEY environment variable is not set")
-        
-        self.client = OpenAI(api_key=api_key)
+            print("⚠️  OPENAI_API_KEY not found. AI features will use fallback responses.")
+            self.client = None
+        else:
+            try:
+                self.client = OpenAI(api_key=api_key)
+            except Exception as e:
+                print(f"⚠️  Failed to initialize OpenAI client: {e}. Using fallback responses.")
+                self.client = None
         self.model = "gpt-3.5-turbo"  # Using GPT-3.5-turbo for better compatibility
     
     def generate_project_brief(self, project_name: str, user_input: str) -> Dict[str, str]:
@@ -33,6 +38,11 @@ class AIAssistant:
         Format your response as a JSON object with these exact keys: vision, problems, timeline, impact, goals
         Each value should be a well-written paragraph (2-4 sentences).
         """
+        
+        # Check if client is available
+        if not self.client:
+            print("OpenAI client not available, using fallback brief")
+            return self._get_fallback_brief(project_name, user_input)
         
         # Try with retry logic
         max_retries = 3
@@ -106,6 +116,11 @@ class AIAssistant:
         Format your response as a JSON array of objects with these exact keys: title, description, priority, size, estimated_duration, suggested_start_offset
         """
         
+        # Check if client is available
+        if not self.client:
+            print("OpenAI client not available, using fallback tasks")
+            return self._get_fallback_tasks(project_name)
+        
         # Try with retry logic
         max_retries = 3
         for attempt in range(max_retries):
@@ -171,6 +186,11 @@ class AIAssistant:
 
         Keep it professional and actionable.
         """
+        
+        # Check if client is available
+        if not self.client:
+            print("OpenAI client not available, using fallback summary")
+            return self._get_fallback_summary(project_name, tasks, project_brief)
         
         # Try with retry logic
         max_retries = 3

@@ -1,0 +1,22 @@
+{
+  "DATABASE_URL": "REQUIRED: Azure SQL Database connection string",
+  "AZURE_SIGNALR_CONNECTION_STRING": "OPTIONAL: Azure SignalR Service connection string for WebSocket scaling",
+  "AZURE_COMMUNICATION_CONNECTION_STRING": "OPTIONAL: Azure Communication Services connection string for email delivery",
+  "AZURE_REDIS_CONNECTION_STRING": "OPTIONAL: Azure Redis Cache connection string for session management",
+  "AZURE_SERVICE_BUS_CONNECTION_STRING": "OPTIONAL: Azure Service Bus connection string for message queuing",
+  "AZURE_COMMUNICATION_SENDER_EMAIL": "OPTIONAL: Sender email address for Azure Communication Services",
+  "AZURE_COMMUNICATION_SENDER_NAME": "OPTIONAL: Sender name for emails",
+  "SECRET_KEY": "REQUIRED: Flask secret key for session security",
+  "GOOGLE_CLIENT_ID": "OPTIONAL: Google OAuth client ID",
+  "GOOGLE_CLIENT_SECRET": "OPTIONAL: Google OAuth client secret",
+  "OUTLOOK_CLIENT_ID": "OPTIONAL: Microsoft OAuth client ID",
+  "OUTLOOK_CLIENT_SECRET": "OPTIONAL: Microsoft OAuth client secret",
+  "OPENAI_API_KEY": "OPTIONAL: OpenAI API key for AI features",
+  "APPINSIGHTS_INSTRUMENTATIONKEY": "OPTIONAL: Application Insights instrumentation key for monitoring",
+  "CUSTOM_DOMAIN": "OPTIONAL: Custom domain name if using one",
+  "SCM_DO_BUILD_DURING_DEPLOYMENT": "true",
+  "ENABLE_ORYX_BUILD": "true",
+  "WEBSITES_ENABLE_APP_SERVICE_STORAGE": "false",
+  "WEBSITES_PORT": "8000",
+  "PYTHONPATH": "/home/site/wwwroot"
+}

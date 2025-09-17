@@ -3,7 +3,7 @@
 {% block title %}{{ project.name }} - Rhythmic{% endblock %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 py-8">
+<div class="max-w-7xl mx-auto px-4 py-8" data-project-id="{{ project.id }}" data-user-id="{{ current_user.id }}">
     <div class="mb-8">
         <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
             <div>
@@ -15,14 +15,44 @@
                 {% endif %}
             </div>
             <div class="flex flex-col sm:flex-row gap-3">
+                {% if user_permissions.can_create_tasks %}
                 <a href="{{ url_for('new_task', project_id=project.id) }}"
                     class="btn-primary text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center shadow-lg">
                     <i class="fas fa-plus mr-2"></i>Add Task
                 </a>
+                {% endif %}
+                {% if user_permissions.can_edit_project %}
                 <a href="{{ url_for('edit_project', id=project.id) }}"
                     class="glass text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center hover:bg-white/10 transition-all duration-200">
                     <i class="fas fa-edit mr-2"></i>Edit Project
                 </a>
+                {% endif %}
+                {% if user_permissions.can_manage_collaborators %}
+                <button id="manage-sharing-btn"
+                    class="glass text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center hover:bg-white/10 transition-all duration-200">
+                    <i class="fas fa-share-alt mr-2"></i>Share Project
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Real-time Status and Active Users -->
+    <div class="mb-6">
+        <div class="glass rounded-2xl p-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <div id="websocket-status" class="websocket-status connecting">
+                        🔄 Connecting to real-time updates...
+                    </div>
+                    <div class="text-gray-400 text-sm">
+                        <i class="fas fa-users mr-1"></i>
+                        <span id="active-user-count">0</span> active
+                    </div>
+                </div>
+                <div id="active-users" class="flex items-center space-x-2">
+                    <!-- Active users will be populated by JavaScript -->
+                </div>
             </div>
         </div>
     </div>
@@ -32,10 +62,20 @@
         <div class="glass rounded-2xl p-6">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-lg font-semibold text-white">Project Actions</h3>
-                <button id="manage-labels-btn"
-                    class="text-pink-400 hover:text-pink-300 px-3 py-1.5 rounded-lg hover:bg-pink-500/10 transition-all duration-200 text-sm">
-                    <i class="fas fa-tags mr-2"></i>Manage Labels
-                </button>
+                <div class="flex items-center space-x-2">
+                    {% if user_permissions.can_edit_project %}
+                    <button id="manage-labels-btn"
+                        class="text-pink-400 hover:text-pink-300 px-3 py-1.5 rounded-lg hover:bg-pink-500/10 transition-all duration-200 text-sm">
+                        <i class="fas fa-tags mr-2"></i>Manage Labels
+                    </button>
+                    {% endif %}
+                    {% if user_permissions.can_manage_collaborators %}
+                    <button id="manage-collaborators-btn"
+                        class="text-blue-400 hover:text-blue-300 px-3 py-1.5 rounded-lg hover:bg-blue-500/10 transition-all duration-200 text-sm">
+                        <i class="fas fa-users mr-2"></i>Collaborators ({{ collaborators|length + 1 }})
+                    </button>
+                    {% endif %}
+                </div>
             </div>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <a href="{{ url_for('export_project', id=project.id) }}" class="action-item-card group">
@@ -48,6 +88,7 @@
                     </div>
                 </a>
 
+                {% if user_permissions.can_create_tasks %}
                 <a href="{{ url_for('import_project', id=project.id) }}" class="action-item-card group">
                     <div class="flex flex-col items-center p-4">
                         <div
@@ -57,6 +98,7 @@
                         <span class="text-sm font-medium text-white">Import CSV</span>
                     </div>
                 </a>
+                {% endif %}
 
                 <button onclick="toggleTimelineView()" class="action-item-card group">
                     <div class="flex flex-col items-center p-4">
@@ -77,10 +119,12 @@
                         <span class="text-sm font-medium text-white">AI Summary</span>
                     </div>
                 </button>
+
+
             </div>
 
-            <!-- AI Tasks Button (only show if no tasks exist) -->
-            {% if not tasks %}
+            <!-- AI Tasks Button (only show if no tasks exist and user can create tasks) -->
+            {% if not tasks and user_permissions.can_create_tasks %}
             <div class="mt-4 pt-4 border-t border-gray-700">
                 <button id="generate-tasks-btn"
                     class="w-full flex items-center justify-center p-4 rounded-xl bg-gradient-to-r from-yellow-500/20 to-orange-500/20 hover:from-yellow-500/30 hover:to-orange-500/30 transition-all duration-200 group">
@@ -331,6 +375,7 @@
 
                         <!-- Action Buttons -->
                         <div class="flex items-center space-x-1">
+                            {% if user_permissions.can_edit_tasks %}
                             <!-- Dependency Management -->
                             <button
                                 class="manage-dependencies text-gray-500 hover:text-orange-400 p-1.5 rounded-md hover:bg-orange-500/10 transition-all duration-200"
@@ -346,6 +391,7 @@
                                     <i class="fas fa-trash text-sm"></i>
                                 </button>
                             </form>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -359,11 +405,19 @@
                 <i class="fas fa-tasks text-gray-400 text-2xl"></i>
             </div>
             <h3 class="text-xl font-semibold text-white mb-3">No tasks yet</h3>
-            <p class="text-gray-400 mb-6">Start by adding your first task to this project</p>
+            <p class="text-gray-400 mb-6">
+                {% if user_permissions.can_create_tasks %}
+                Start by adding your first task to this project
+                {% else %}
+                This project doesn't have any tasks yet. You have {{ user_role }} access.
+                {% endif %}
+            </p>
+            {% if user_permissions.can_create_tasks %}
             <a href="{{ url_for('new_task', project_id=project.id) }}"
                 class="btn-primary text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center shadow-lg">
                 <i class="fas fa-plus mr-2"></i>Add First Task
             </a>
+            {% endif %}
         </div>
         {% endif %}
     </div>
@@ -380,11 +434,21 @@
         </div>
     </div>
 </div>
+    <!-- Include Sharing Modals -->
+    {% include 'sharing_modal.html' %}
+    {% include 'collaborator_management.html' %}
+</div>
 {% endblock %}
 
 {% block scripts %}
 <!-- SortableJS for drag and drop -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<!-- WebSocket Client -->
+<script src="{{ url_for('static', filename='js/websocket-client.js') }}"></script>
+<!-- Project Real-time Updates -->
+<script src="{{ url_for('static', filename='js/project-realtime.js') }}"></script>
+<!-- Sharing Management -->
+<script src="{{ url_for('static', filename='js/sharing.js') }}"></script>
 
 <style>
     /* Custom dropdown styling for better visibility */
@@ -562,6 +626,161 @@
         border-color: rgba(75, 85, 99, 0.4);
         transform: translateY(-2px);
         box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Real-time Update Styles */
+    .websocket-status {
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+
+    .websocket-status.connected {
+        background-color: rgba(34, 197, 94, 0.2);
+        color: #22c55e;
+        border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+
+    .websocket-status.disconnected {
+        background-color: rgba(239, 68, 68, 0.2);
+        color: #ef4444;
+        border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .websocket-status.connecting {
+        background-color: rgba(234, 179, 8, 0.2);
+        color: #eab308;
+        border: 1px solid rgba(234, 179, 8, 0.3);
+    }
+
+    .websocket-status.error {
+        background-color: rgba(239, 68, 68, 0.2);
+        color: #ef4444;
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        animation: pulse 2s infinite;
+    }
+
+    .websocket-status.project_joined {
+        background-color: rgba(34, 197, 94, 0.2);
+        color: #22c55e;
+        border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+
+    /* Active Users Styling */
+    .active-user {
+        position: relative;
+    }
+
+    .active-user img {
+        transition: all 0.3s ease;
+    }
+
+    .active-user:hover img {
+        transform: scale(1.1);
+        box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
+    }
+
+    /* Real-time Notifications */
+    .notification {
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .notification.info {
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.9) 0%, rgba(37, 99, 235, 0.9) 100%);
+    }
+
+    .notification.success {
+        background: linear-gradient(135deg, rgba(34, 197, 94, 0.9) 0%, rgba(22, 163, 74, 0.9) 100%);
+    }
+
+    .notification.warning {
+        background: linear-gradient(135deg, rgba(234, 179, 8, 0.9) 0%, rgba(202, 138, 4, 0.9) 100%);
+    }
+
+    .notification.error {
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.9) 0%, rgba(220, 38, 38, 0.9) 100%);
+    }
+
+    /* Conflict Resolution Dialog */
+    .conflict-dialog {
+        backdrop-filter: blur(20px);
+        background: rgba(0, 0, 0, 0.8);
+    }
+
+    .conflict-dialog .dialog-content {
+        background: linear-gradient(135deg, rgba(31, 41, 55, 0.95) 0%, rgba(17, 24, 39, 0.95) 100%);
+        border: 1px solid rgba(75, 85, 99, 0.3);
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Task Update Animations */
+    .task-item.updating {
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(37, 99, 235, 0.2) 100%);
+        border-color: rgba(59, 130, 246, 0.4);
+        animation: pulse-blue 2s ease-in-out;
+    }
+
+    .task-item.new-task {
+        animation: slideInFromTop 0.5s ease-out;
+    }
+
+    .task-item.deleted-task {
+        animation: slideOutToLeft 0.3s ease-in forwards;
+    }
+
+    /* Project Update Animation */
+    .project-updated {
+        animation: pulse-green 2s ease-in-out;
+    }
+
+    /* Keyframe Animations */
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+
+    @keyframes pulse-blue {
+        0%, 100% { 
+            background: linear-gradient(135deg, rgba(31, 41, 55, 0.6) 0%, rgba(17, 24, 39, 0.6) 100%);
+        }
+        50% { 
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(37, 99, 235, 0.2) 100%);
+        }
+    }
+
+    @keyframes pulse-green {
+        0%, 100% { 
+            background: transparent;
+        }
+        50% { 
+            background: rgba(34, 197, 94, 0.1);
+        }
+    }
+
+    @keyframes slideInFromTop {
+        0% {
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+        100% {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @keyframes slideOutToLeft {
+        0% {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        100% {
+            opacity: 0;
+            transform: translateX(-100%);
+        }
     }
 
     /* Label Styling */
@@ -1345,6 +1564,21 @@
             case 'in_progress': return 'bg-blue-400';
             case 'blocked': return 'bg-red-400';
             default: return 'bg-gray-500';
+        }
+    }
+
+    // Initialize Sharing Manager
+    window.sharingManager = new SharingManager({{ project.id }});
+    
+    // Initialize Activity Log Manager
+    window.activityLogManager = new ActivityLogManager();
+    
+    // Initialize WebSocket if available
+    if (typeof initializeWebSocket === 'function') {
+        const wsClient = initializeWebSocket();
+        if (wsClient) {
+            wsClient.connect();
+            wsClient.joinProject({{ project.id }});
         }
     }
 </script>

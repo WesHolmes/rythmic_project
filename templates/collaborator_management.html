@@ -1,0 +1,245 @@
+<!-- Collaborator Management Modal -->
+<div id="collaborator-modal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 hidden">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="glass rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between p-6 border-b border-gray-700">
+                <h2 class="text-2xl font-bold text-white flex items-center">
+                    <i class="fas fa-users mr-3 text-blue-400"></i>
+                    Manage Collaborators
+                </h2>
+                <button id="close-collaborator-modal" class="text-gray-400 hover:text-white transition-colors">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+
+            <!-- Modal Content -->
+            <div class="p-6">
+                <!-- Current Collaborators -->
+                <div class="mb-8">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-white">Current Collaborators</h3>
+                        <button id="refresh-collaborators-btn" 
+                            class="text-blue-400 hover:text-blue-300 px-3 py-1.5 rounded-lg hover:bg-blue-500/10 transition-all duration-200 text-sm">
+                            <i class="fas fa-sync-alt mr-2"></i>Refresh
+                        </button>
+                    </div>
+
+                    <!-- Collaborators List -->
+                    <div id="collaborators-list" class="space-y-3">
+                        <!-- Loading state -->
+                        <div id="collaborators-loading" class="text-center py-8">
+                            <div class="spinner mx-auto mb-4"></div>
+                            <p class="text-gray-400">Loading collaborators...</p>
+                        </div>
+
+                        <!-- Empty state -->
+                        <div id="collaborators-empty" class="text-center py-8 hidden">
+                            <div class="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <i class="fas fa-user-friends text-gray-400 text-2xl"></i>
+                            </div>
+                            <h4 class="text-lg font-medium text-white mb-2">No Collaborators Yet</h4>
+                            <p class="text-gray-400">Share your project to start collaborating with others.</p>
+                        </div>
+
+                        <!-- Collaborators will be populated here -->
+                    </div>
+                </div>
+
+                <!-- Role Permissions Reference -->
+                <div class="mb-8">
+                    <h3 class="text-lg font-semibold text-white mb-4">Role Permissions</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <!-- Owner Role -->
+                        <div class="bg-gradient-to-br from-red-500/20 to-red-600/20 border border-red-500/30 rounded-lg p-4">
+                            <div class="flex items-center mb-3">
+                                <div class="w-8 h-8 bg-red-500/30 rounded-lg flex items-center justify-center mr-3">
+                                    <i class="fas fa-crown text-red-400 text-sm"></i>
+                                </div>
+                                <h4 class="font-semibold text-red-400">Owner</h4>
+                            </div>
+                            <ul class="text-sm text-gray-300 space-y-1">
+                                <li><i class="fas fa-check text-green-400 mr-2"></i>Full project control</li>
+                                <li><i class="fas fa-check text-green-400 mr-2"></i>Delete project</li>
+                                <li><i class="fas fa-check text-green-400 mr-2"></i>Manage all collaborators</li>
+                                <li><i class="fas fa-check text-green-400 mr-2"></i>Transfer ownership</li>
+                            </ul>
+                        </div>
+
+                        <!-- Admin Role -->
+                        <div class="bg-gradient-to-br from-orange-500/20 to-orange-600/20 border border-orange-500/30 rounded-lg p-4">
+                            <div class="flex items-center mb-3">
+                                <div class="w-8 h-8 bg-orange-500/30 rounded-lg flex items-center justify-center mr-3">
+                                    <i class="fas fa-user-shield text-orange-400 text-sm"></i>
+                                </div>
+                                <h4 class="font-semibold text-orange-400">Admin</h4>
+                            </div>
+                            <ul class="text-sm text-gray-300 space-y-1">
+                                <li><i class="fas fa-check text-green-400 mr-2"></i>Edit project settings</li>
+                                <li><i class="fas fa-check text-green-400 mr-2"></i>Manage tasks</li>
+                                <li><i class="fas fa-check text-green-400 mr-2"></i>Invite editors/viewers</li>
+                                <li><i class="fas fa-times text-red-400 mr-2"></i>Cannot delete project</li>
+                            </ul>
+                        </div>
+
+                        <!-- Editor Role -->
+                        <div class="bg-gradient-to-br from-blue-500/20 to-blue-600/20 border border-blue-500/30 rounded-lg p-4">
+                            <div class="flex items-center mb-3">
+                                <div class="w-8 h-8 bg-blue-500/30 rounded-lg flex items-center justify-center mr-3">
+                                    <i class="fas fa-edit text-blue-400 text-sm"></i>
+                                </div>
+                                <h4 class="font-semibold text-blue-400">Editor</h4>
+                            </div>
+                            <ul class="text-sm text-gray-300 space-y-1">
+                                <li><i class="fas fa-check text-green-400 mr-2"></i>Create tasks</li>
+                                <li><i class="fas fa-check text-green-400 mr-2"></i>Edit tasks</li>
+                                <li><i class="fas fa-check text-green-400 mr-2"></i>Update task status</li>
+                                <li><i class="fas fa-times text-red-400 mr-2"></i>Cannot manage settings</li>
+                            </ul>
+                        </div>
+
+                        <!-- Viewer Role -->
+                        <div class="bg-gradient-to-br from-gray-500/20 to-gray-600/20 border border-gray-500/30 rounded-lg p-4">
+                            <div class="flex items-center mb-3">
+                                <div class="w-8 h-8 bg-gray-500/30 rounded-lg flex items-center justify-center mr-3">
+                                    <i class="fas fa-eye text-gray-400 text-sm"></i>
+                                </div>
+                                <h4 class="font-semibold text-gray-400">Viewer</h4>
+                            </div>
+                            <ul class="text-sm text-gray-300 space-y-1">
+                                <li><i class="fas fa-check text-green-400 mr-2"></i>View project</li>
+                                <li><i class="fas fa-check text-green-400 mr-2"></i>View tasks</li>
+                                <li><i class="fas fa-check text-green-400 mr-2"></i>Export data</li>
+                                <li><i class="fas fa-times text-red-400 mr-2"></i>Cannot edit anything</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Active Sharing Links -->
+                <div class="mb-8">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-white">Active Sharing Links</h3>
+                        <button id="refresh-tokens-btn"
+                            class="text-blue-400 hover:text-blue-300 px-3 py-1.5 rounded-lg hover:bg-blue-500/10 transition-all duration-200 text-sm">
+                            <i class="fas fa-sync-alt mr-2"></i>Refresh
+                        </button>
+                    </div>
+
+                    <div id="sharing-tokens-list" class="space-y-3">
+                        <!-- Loading state -->
+                        <div id="tokens-loading" class="text-center py-8">
+                            <div class="spinner mx-auto mb-4"></div>
+                            <p class="text-gray-400">Loading sharing links...</p>
+                        </div>
+
+                        <!-- Empty state -->
+                        <div id="tokens-empty" class="text-center py-8 hidden">
+                            <div class="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <i class="fas fa-link text-gray-400 text-2xl"></i>
+                            </div>
+                            <h4 class="text-lg font-medium text-white mb-2">No Active Links</h4>
+                            <p class="text-gray-400">Create sharing links to invite new collaborators.</p>
+                        </div>
+
+                        <!-- Tokens will be populated here -->
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex justify-between items-center pt-6 border-t border-gray-700">
+                    <button id="view-activity-log-btn"
+                        class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors">
+                        <i class="fas fa-history mr-2"></i>View Activity Log
+                    </button>
+                    
+                    <div class="flex space-x-3">
+                        <button id="close-collaborator-modal-btn"
+                            class="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors">
+                            Close
+                        </button>
+                        <button id="invite-collaborator-btn"
+                            class="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg font-medium transition-all duration-200 shadow-lg">
+                            <i class="fas fa-user-plus mr-2"></i>Invite Collaborator
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Role Change Confirmation Modal -->
+<div id="role-change-modal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-60 hidden">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="glass rounded-2xl max-w-md w-full">
+            <div class="p-6">
+                <div class="flex items-center mb-4">
+                    <div class="w-12 h-12 bg-yellow-500/20 rounded-full flex items-center justify-center mr-4">
+                        <i class="fas fa-exclamation-triangle text-yellow-400 text-xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-white">Confirm Role Change</h3>
+                        <p class="text-gray-400 text-sm">This action will update the collaborator's permissions</p>
+                    </div>
+                </div>
+
+                <div class="bg-gray-800/50 rounded-lg p-4 mb-6">
+                    <p class="text-white">
+                        Change <span id="role-change-user" class="font-semibold text-blue-400"></span>'s role from 
+                        <span id="role-change-from" class="font-semibold text-orange-400"></span> to 
+                        <span id="role-change-to" class="font-semibold text-green-400"></span>?
+                    </p>
+                </div>
+
+                <div class="flex justify-end space-x-3">
+                    <button id="cancel-role-change"
+                        class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors">
+                        Cancel
+                    </button>
+                    <button id="confirm-role-change"
+                        class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg font-medium transition-colors">
+                        <i class="fas fa-check mr-2"></i>Confirm Change
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Remove Collaborator Confirmation Modal -->
+<div id="remove-collaborator-modal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-60 hidden">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="glass rounded-2xl max-w-md w-full">
+            <div class="p-6">
+                <div class="flex items-center mb-4">
+                    <div class="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mr-4">
+                        <i class="fas fa-user-times text-red-400 text-xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-white">Remove Collaborator</h3>
+                        <p class="text-gray-400 text-sm">This action cannot be undone</p>
+                    </div>
+                </div>
+
+                <div class="bg-gray-800/50 rounded-lg p-4 mb-6">
+                    <p class="text-white">
+                        Remove <span id="remove-collaborator-user" class="font-semibold text-red-400"></span> from this project?
+                        They will lose all access immediately.
+                    </p>
+                </div>
+
+                <div class="flex justify-end space-x-3">
+                    <button id="cancel-remove-collaborator"
+                        class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors">
+                        Cancel
+                    </button>
+                    <button id="confirm-remove-collaborator"
+                        class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors">
+                        <i class="fas fa-trash mr-2"></i>Remove
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

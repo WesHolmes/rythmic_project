@@ -1,0 +1,201 @@
+<!-- Activity Log Modal -->
+<div id="activity-log-modal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 hidden">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="glass rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between p-6 border-b border-gray-700">
+                <h2 class="text-2xl font-bold text-white flex items-center">
+                    <i class="fas fa-history mr-3 text-green-400"></i>
+                    Sharing Activity Log
+                </h2>
+                <div class="flex items-center space-x-3">
+                    <button id="export-activity-log"
+                        class="text-blue-400 hover:text-blue-300 px-3 py-1.5 rounded-lg hover:bg-blue-500/10 transition-all duration-200 text-sm">
+                        <i class="fas fa-download mr-2"></i>Export
+                    </button>
+                    <button id="close-activity-log-modal" class="text-gray-400 hover:text-white transition-colors">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Modal Content -->
+            <div class="p-6">
+                <!-- Filters -->
+                <div class="mb-6">
+                    <div class="flex flex-wrap gap-4 items-center">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-1">Filter by Action</label>
+                            <select id="activity-action-filter"
+                                class="px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="">All Actions</option>
+                                <option value="project_shared">Project Shared</option>
+                                <option value="collaborator_added">Collaborator Added</option>
+                                <option value="collaborator_removed">Collaborator Removed</option>
+                                <option value="role_changed">Role Changed</option>
+                                <option value="access_granted">Access Granted</option>
+                                <option value="access_revoked">Access Revoked</option>
+                                <option value="token_generated">Token Generated</option>
+                                <option value="token_used">Token Used</option>
+                                <option value="suspicious_access">Suspicious Access</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-1">Date Range</label>
+                            <select id="activity-date-filter"
+                                class="px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="all">All Time</option>
+                                <option value="today">Today</option>
+                                <option value="week">This Week</option>
+                                <option value="month">This Month</option>
+                                <option value="custom">Custom Range</option>
+                            </select>
+                        </div>
+
+                        <div id="custom-date-range" class="hidden">
+                            <label class="block text-sm font-medium text-gray-300 mb-1">From</label>
+                            <input type="date" id="activity-date-from"
+                                class="px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+
+                        <div id="custom-date-range-to" class="hidden">
+                            <label class="block text-sm font-medium text-gray-300 mb-1">To</label>
+                            <input type="date" id="activity-date-to"
+                                class="px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+
+                        <div class="flex items-end">
+                            <button id="apply-activity-filters"
+                                class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
+                                <i class="fas fa-filter mr-2"></i>Apply
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Activity Timeline -->
+                <div id="activity-timeline" class="space-y-4">
+                    <!-- Loading state -->
+                    <div id="activity-loading" class="text-center py-12">
+                        <div class="spinner mx-auto mb-4"></div>
+                        <p class="text-gray-400">Loading activity log...</p>
+                    </div>
+
+                    <!-- Empty state -->
+                    <div id="activity-empty" class="text-center py-12 hidden">
+                        <div class="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <i class="fas fa-history text-gray-400 text-2xl"></i>
+                        </div>
+                        <h4 class="text-lg font-medium text-white mb-2">No Activity Found</h4>
+                        <p class="text-gray-400">No sharing activity matches your current filters.</p>
+                    </div>
+
+                    <!-- Activity items will be populated here -->
+                </div>
+
+                <!-- Load More -->
+                <div id="load-more-container" class="text-center mt-6 hidden">
+                    <button id="load-more-activity"
+                        class="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors">
+                        <i class="fas fa-chevron-down mr-2"></i>Load More
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Activity Detail Modal -->
+<div id="activity-detail-modal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-60 hidden">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="glass rounded-2xl max-w-2xl w-full">
+            <div class="flex items-center justify-between p-6 border-b border-gray-700">
+                <h3 class="text-xl font-bold text-white">Activity Details</h3>
+                <button id="close-activity-detail-modal" class="text-gray-400 hover:text-white transition-colors">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+
+            <div class="p-6">
+                <div id="activity-detail-content">
+                    <!-- Content will be populated dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Activity Item Template -->
+<template id="activity-item-template">
+    <div class="activity-item flex items-start space-x-4 p-4 bg-gray-800/30 rounded-lg hover:bg-gray-800/50 transition-colors cursor-pointer">
+        <div class="flex-shrink-0">
+            <div class="activity-icon w-10 h-10 rounded-full flex items-center justify-center">
+                <i class="activity-icon-class text-sm"></i>
+            </div>
+        </div>
+        
+        <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between mb-1">
+                <p class="activity-description text-white font-medium"></p>
+                <span class="activity-time text-xs text-gray-400"></span>
+            </div>
+            
+            <div class="activity-details text-sm text-gray-400 mb-2"></div>
+            
+            <div class="activity-metadata flex items-center space-x-4 text-xs text-gray-500">
+                <span class="activity-ip flex items-center">
+                    <i class="fas fa-globe mr-1"></i>
+                    <span class="ip-address"></span>
+                </span>
+                <span class="activity-user-agent flex items-center">
+                    <i class="fas fa-desktop mr-1"></i>
+                    <span class="user-agent"></span>
+                </span>
+            </div>
+        </div>
+        
+        <div class="flex-shrink-0">
+            <button class="view-details-btn text-gray-400 hover:text-white p-2 rounded-lg hover:bg-gray-700/50 transition-colors">
+                <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+    </div>
+</template>
+
+<style>
+/* Activity Log Specific Styles */
+.activity-item {
+    transition: all 0.2s ease;
+}
+
+.activity-item:hover {
+    transform: translateX(4px);
+}
+
+/* Activity Type Colors */
+.activity-project-shared { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+.activity-collaborator-added { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+.activity-collaborator-removed { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+.activity-role-changed { background: rgba(234, 179, 8, 0.2); color: #eab308; }
+.activity-access-granted { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+.activity-access-revoked { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+.activity-token-generated { background: rgba(168, 85, 247, 0.2); color: #a855f7; }
+.activity-token-used { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+.activity-suspicious-access { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+
+/* Timeline connector */
+.activity-item:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: 24px;
+    top: 60px;
+    width: 2px;
+    height: 20px;
+    background: linear-gradient(to bottom, rgba(75, 85, 99, 0.5), transparent);
+}
+
+.activity-item {
+    position: relative;
+}
+</style>

@@ -490,7 +490,9 @@ google = oauth.register(
     name='google',
     client_id=os.environ.get('GOOGLE_CLIENT_ID'),
     client_secret=os.environ.get('GOOGLE_CLIENT_SECRET'),
-    server_metadata_url='https://accounts.google.com/.well-known/openid_configuration',
+    authorize_url='https://accounts.google.com/o/oauth2/auth',
+    access_token_url='https://oauth2.googleapis.com/token',
+    jwks_uri='https://www.googleapis.com/oauth2/v3/certs',
     client_kwargs={
         'scope': 'openid email profile'
     }
@@ -1042,12 +1044,15 @@ def login_microsoft():
 def authorize_google():
     try:
         token = google.authorize_access_token()
-        user_info = token.get('userinfo')
         
-        if user_info:
+        # Get user info from Google API
+        resp = google.get('https://www.googleapis.com/oauth2/v2/userinfo', token=token)
+        user_info = resp.json()
+        
+        if user_info and user_info.get('email'):
             email = user_info.get('email')
             name = user_info.get('name', email.split('@')[0])
-            provider_id = user_info.get('sub')
+            provider_id = user_info.get('id')
             avatar_url = user_info.get('picture')
             
             # Check if user exists
@@ -3169,7 +3174,7 @@ print("Security enhancements configured via Azure security config")
 if __name__ == '__main__':
     create_tables()
     # Use SocketIO run instead of app.run for WebSocket support
-    port = int(os.environ.get('PORT', 5000))
+    port = int(os.environ.get('PORT', 5001))  # Changed default to 5001
     socketio.run(app, debug=True, host='0.0.0.0', port=port)
 
 @app.route('/health')

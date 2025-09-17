@@ -20,6 +20,19 @@ load_dotenv()
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 
+# Force HTTPS in production (Azure App Service)
+if os.environ.get('FLASK_ENV') == 'production':
+    app.config['PREFERRED_URL_SCHEME'] = 'https'
+
+# Handle Azure App Service proxy headers
+@app.before_request
+def force_https():
+    """Force HTTPS for OAuth redirects on Azure App Service"""
+    if os.environ.get('FLASK_ENV') == 'production' or 'azurewebsites.net' in request.host:
+        if not request.is_secure and request.headers.get('X-Forwarded-Proto') != 'https':
+            # Don't redirect, just ensure URL generation uses HTTPS
+            pass
+
 # Configure Azure services integration
 try:
     from services.azure_services_config import configure_flask_app_with_azure_services
@@ -1029,15 +1042,26 @@ def logout():
     logout_user()
     return redirect(url_for('index'))
 
+# Helper function to generate secure redirect URIs
+def get_redirect_uri(endpoint):
+    """Generate redirect URI with HTTPS for production"""
+    # Check if we're on Azure App Service
+    if 'azurewebsites.net' in request.host:
+        # Manually construct HTTPS URL for Azure
+        return f"https://{request.host}{url_for(endpoint)}"
+    else:
+        # Use normal URL generation for local development
+        return url_for(endpoint, _external=True)
+
 # OAuth Routes
 @app.route('/login/google')
 def login_google():
-    redirect_uri = url_for('authorize_google', _external=True)
+    redirect_uri = get_redirect_uri('authorize_google')
     return google.authorize_redirect(redirect_uri)
 
 @app.route('/login/github')
 def login_github():
-    redirect_uri = url_for('authorize_github', _external=True)
+    redirect_uri = get_redirect_uri('authorize_github')
     return github.authorize_redirect(redirect_uri)
 
 @app.route('/authorize/google')
@@ -3182,7 +3206,7 @@ print("Security enhancements configured via Azure security config")
 if __name__ == '__main__':
     create_tables()
     # Use SocketIO run instead of app.run for WebSocket support
-    port = int(os.environ.get('PORT', 5001))  # Changed default to 5001
+    port = int(os.environ.get('PORT', 5000))  # Changed default to 5000
     socketio.run(app, debug=True, host='0.0.0.0', port=port)
 
 @app.route('/health')

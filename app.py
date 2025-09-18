@@ -41,76 +41,7 @@ if 'azurewebsites.net' in os.environ.get('HTTP_HOST', '') or os.environ.get('WEB
     # Using Flask route for static file handling on Azure
     print("Azure App Service detected - using Flask static file handler")
 
-# Direct static file handler for Azure App Service
-# Configure static file serving for Azure App Service on Linux
-@app.route('/static/<path:filename>')
-def serve_static(filename):
-    """Serve static files with proper MIME types for Azure App Service on Linux"""
-    from flask import Response
-    import os
-    import mimetypes
-    
-    print(f"[STATIC] Request for: {filename}")
-    
-    try:
-        # Get static folder path
-        static_folder = app.static_folder or os.path.join(app.root_path, 'static')
-        file_path = os.path.join(static_folder, filename)
-        
-        print(f"[STATIC] Looking for file at: {file_path}")
-        print(f"[STATIC] File exists: {os.path.exists(file_path)}")
-        
-        # Check if file exists
-        if not os.path.exists(file_path):
-            print(f"[STATIC] File not found: {file_path}")
-            return "File not found", 404
-        
-        # Read file content
-        with open(file_path, 'rb') as f:
-            content = f.read()
-        
-        print(f"[STATIC] File size: {len(content)} bytes")
-        
-        # Determine MIME type
-        mime_type = 'application/octet-stream'
-        if filename.endswith('.css'):
-            mime_type = 'text/css'
-        elif filename.endswith('.js'):
-            mime_type = 'application/javascript'
-        elif filename.endswith('.json'):
-            mime_type = 'application/json'
-        elif filename.endswith('.png'):
-            mime_type = 'image/png'
-        elif filename.endswith('.jpg') or filename.endswith('.jpeg'):
-            mime_type = 'image/jpeg'
-        elif filename.endswith('.gif'):
-            mime_type = 'image/gif'
-        elif filename.endswith('.svg'):
-            mime_type = 'image/svg+xml'
-        elif filename.endswith('.woff'):
-            mime_type = 'font/woff'
-        elif filename.endswith('.woff2'):
-            mime_type = 'font/woff2'
-        elif filename.endswith('.ttf'):
-            mime_type = 'font/ttf'
-        elif filename.endswith('.ico'):
-            mime_type = 'image/x-icon'
-        
-        print(f"[STATIC] MIME type: {mime_type}")
-        
-        # Create response
-        response = Response(content, mimetype=mime_type)
-        response.headers['Cache-Control'] = 'public, max-age=31536000'
-        response.headers['X-Content-Type-Options'] = 'nosniff'
-        
-        print(f"[STATIC] Successfully serving {filename}")
-        return response
-        
-    except Exception as e:
-        print(f"[STATIC] Error serving {filename}: {e}")
-        import traceback
-        traceback.print_exc()
-        return f"Error: {str(e)}", 500
+# Remove custom static handler - let Flask handle it normally
 
 @app.route('/debug-static')
 def debug_static():
@@ -3556,11 +3487,7 @@ def create_tables():
 # Security enhancements are handled by Azure security config
 print("Security enhancements configured via Azure security config")
 
-if __name__ == '__main__':
-    create_tables()
-    # Use SocketIO run instead of app.run for WebSocket support
-    port = int(os.environ.get('PORT', 5000))  # Changed default to 5000
-    socketio.run(app, debug=True, host='0.0.0.0', port=port)
+# Routes should be defined before main block
 
 @app.route('/health')
 def health_check():
@@ -3649,3 +3576,19 @@ def azure_services_status():
             'error': 'Failed to get Azure services status',
             'details': str(e)
         }), 500
+# Init
+ialize database tables
+def create_tables():
+    """Create database tables if they don't exist"""
+    try:
+        with app.app_context():
+            db.create_all()
+            print("Database tables created successfully")
+    except Exception as e:
+        print(f"Error creating database tables: {e}")
+
+if __name__ == '__main__':
+    create_tables()
+    # Use SocketIO run instead of app.run for WebSocket support
+    port = int(os.environ.get('PORT', 5000))
+    socketio.run(app, debug=True, host='0.0.0.0', port=port)

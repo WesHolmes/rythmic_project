@@ -33,6 +33,21 @@ def setup_azure_environment():
     os.environ.setdefault('FLASK_ENV', 'production')
     os.environ.setdefault('FLASK_DEBUG', 'False')
     
+    # Ensure static directory exists and is accessible
+    static_dir = '/home/site/wwwroot/static'
+    if os.path.exists(static_dir):
+        logger.info(f"Static directory found: {static_dir}")
+        # List some static files for debugging
+        try:
+            for root, dirs, files in os.walk(static_dir):
+                if files:
+                    logger.info(f"Static files in {root}: {files[:5]}")  # Show first 5 files
+                    break
+        except Exception as e:
+            logger.warning(f"Could not list static files: {e}")
+    else:
+        logger.warning(f"Static directory not found: {static_dir}")
+    
     logger.info("Azure environment setup completed")
 
 
@@ -124,6 +139,20 @@ def run_health_checks():
         # Simple health check - just verify the app can be imported
         from app import app
         logger.info("Health check completed. App imported successfully.")
+        
+        # Check static files
+        static_files_to_check = [
+            'static/css/style.css',
+            'static/js/main.js',
+            'static/js/websocket-client.js'
+        ]
+        
+        for static_file in static_files_to_check:
+            if os.path.exists(static_file):
+                logger.info(f"Static file found: {static_file}")
+            else:
+                logger.warning(f"Static file missing: {static_file}")
+        
         return True
             
     except Exception as e:

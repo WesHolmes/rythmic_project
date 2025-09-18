@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<configuration xmlns:xdt="http://schemas.microsoft.com/XML-Document-Transform">
+  <system.webServer>
+    <staticContent>
+      <mimeMap fileExtension=".css" mimeType="text/css" xdt:Transform="SetAttributes" xdt:Locator="Match(fileExtension)" />
+      <mimeMap fileExtension=".js" mimeType="application/javascript" xdt:Transform="SetAttributes" xdt:Locator="Match(fileExtension)" />
+      <mimeMap fileExtension=".json" mimeType="application/json" xdt:Transform="SetAttributes" xdt:Locator="Match(fileExtension)" />
+      <mimeMap fileExtension=".woff" mimeType="font/woff" xdt:Transform="SetAttributes" xdt:Locator="Match(fileExtension)" />
+      <mimeMap fileExtension=".woff2" mimeType="font/woff2" xdt:Transform="SetAttributes" xdt:Locator="Match(fileExtension)" />
+    </staticContent>
+  </system.webServer>
+</configuration>

@@ -1,0 +1,21 @@
+{
+  "routes": [
+    {
+      "route": "/static/*",
+      "headers": {
+        "Cache-Control": "public, max-age=31536000",
+        "Content-Type": "auto"
+      }
+    }
+  ],
+  "mimeTypes": {
+    ".css": "text/css",
+    ".js": "application/javascript",
+    ".json": "application/json",
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
+    ".ttf": "font/ttf",
+    ".eot": "application/vnd.ms-fontobject",
+    ".svg": "image/svg+xml"
+  }
+}

@@ -17,15 +17,31 @@ from services.ai_service import AIAssistant
 # Load environment variables
 load_dotenv()
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static', static_url_path='/static')
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Important for OAuth flows
 
+# Configure static file serving for Azure
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 31536000  # 1 year cache for static files
+
 # Force HTTPS in production (Azure App Service)
 if os.environ.get('FLASK_ENV') == 'production':
     app.config['PREFERRED_URL_SCHEME'] = 'https'
+
+# Azure App Service static file configuration
+if 'azurewebsites.net' in os.environ.get('HTTP_HOST', '') or os.environ.get('WEBSITE_SITE_NAME'):
+    # We're running on Azure App Service
+    app.config['AZURE_APP_SERVICE'] = True
+    print("Detected Azure App Service environment - configuring static file handling")
+    
+    # Configure Azure-specific static file handling
+    try:
+        from azure_static_handler import configure_azure_static_files
+        configure_azure_static_files(app)
+    except ImportError as e:
+        print(f"Could not import Azure static handler: {e}")
 
 # Handle Azure App Service proxy headers
 @app.before_request
@@ -1284,6 +1300,51 @@ def test_css():
                 <li>• Text should be white on black background</li>
             </ul>
         </div>
+        
+        <div class="mt-8 p-4 bg-red-900/20 border border-red-500/30 rounded-lg">
+            <h3 class="text-red-400 font-semibold mb-2">Static File Debug:</h3>
+            <div class="text-red-300 space-y-2">
+                <p>Environment: <span id="env-info"></span></p>
+                <p>CSS Status: <span id="css-status">Checking...</span></p>
+                <p>JS Status: <span id="js-status">Checking...</span></p>
+                <div class="mt-2">
+                    <button onclick="testStaticFiles()" class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm">
+                        Test Static Files
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <script>
+            // Environment detection
+            document.getElementById('env-info').textContent = 
+                window.location.hostname.includes('azurewebsites.net') ? 'Azure App Service' : 'Local/Other';
+            
+            function testStaticFiles() {
+                // Test CSS file
+                fetch('/static/css/style.css')
+                    .then(response => {
+                        document.getElementById('css-status').textContent = 
+                            `${response.status} - ${response.headers.get('content-type') || 'no content-type'}`;
+                    })
+                    .catch(error => {
+                        document.getElementById('css-status').textContent = `Error: ${error.message}`;
+                    });
+                
+                // Test JS file
+                fetch('/static/js/main.js')
+                    .then(response => {
+                        document.getElementById('js-status').textContent = 
+                            `${response.status} - ${response.headers.get('content-type') || 'no content-type'}`;
+                    })
+                    .catch(error => {
+                        document.getElementById('js-status').textContent = `Error: ${error.message}`;
+                    });
+            }
+            
+            // Auto-test on load
+            window.onload = testStaticFiles;
+        </script>
         
         <div class="mt-4 text-center">
             <a href="/" class="text-blue-400 hover:text-blue-300">← Back to Home</a>
@@ -3349,6 +3410,57 @@ def health_check():
             'error': str(e),
             'timestamp': datetime.utcnow().isoformat()
         }), 503
+
+@app.route('/static/<path:filename>')
+def serve_static_file(filename):
+    """Serve static files with proper MIME types for Azure App Service"""
+    from flask import send_from_directory, current_app
+    import mimetypes
+    import os
+    
+    try:
+        # Get the static folder path
+        static_folder = current_app.static_folder
+        file_path = os.path.join(static_folder, filename)
+        
+        # Check if file exists
+        if not os.path.exists(file_path):
+            return "File not found", 404
+        
+        # Determine MIME type
+        mime_type, _ = mimetypes.guess_type(filename)
+        
+        # Set specific MIME types for common file extensions
+        if filename.endswith('.css'):
+            mime_type = 'text/css'
+        elif filename.endswith('.js'):
+            mime_type = 'application/javascript'
+        elif filename.endswith('.json'):
+            mime_type = 'application/json'
+        elif filename.endswith('.woff'):
+            mime_type = 'font/woff'
+        elif filename.endswith('.woff2'):
+            mime_type = 'font/woff2'
+        elif filename.endswith('.ttf'):
+            mime_type = 'font/ttf'
+        elif filename.endswith('.eot'):
+            mime_type = 'application/vnd.ms-fontobject'
+        elif filename.endswith('.svg'):
+            mime_type = 'image/svg+xml'
+        
+        # Send file with proper MIME type
+        response = send_from_directory(static_folder, filename)
+        if mime_type:
+            response.headers['Content-Type'] = mime_type
+        
+        # Add cache headers for static files
+        response.headers['Cache-Control'] = 'public, max-age=31536000'  # 1 year
+        
+        return response
+        
+    except Exception as e:
+        print(f"Error serving static file {filename}: {e}")
+        return f"Error serving file: {str(e)}", 500
 
 @app.route('/api/azure/status')
 @login_required

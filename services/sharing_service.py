@@ -443,6 +443,127 @@ class SharingService:
             return request.headers.get('User-Agent')
         return None
 
+    def process_sharing_token(self, token: str, user_id: int) -> Dict[str, Any]:
+        """
+        Process a sharing token to add a user to a project.
+        
+        Args:
+            token: The sharing token to process
+            user_id: ID of the user accepting the invitation
+            
+        Returns:
+            Dict[str, Any]: Result containing success status and details
+            
+        Raises:
+            InvalidTokenError: If token is invalid, expired, or exhausted
+            SharingServiceError: If user is already a collaborator or other errors
+        """
+        from app import db, User, Project, ProjectCollaborator, SharingToken, SharingActivityLog, InvitationNotification
+        
+        # Find the sharing token
+        sharing_token = SharingToken.query.filter_by(token=token, is_active=True).first()
+        
+        if not sharing_token:
+            raise InvalidTokenError("Invalid or inactive sharing token")
+        
+        # Check if token has expired
+        if sharing_token.expires_at and sharing_token.expires_at < datetime.utcnow():
+            raise InvalidTokenError("Sharing token has expired")
+        
+        # Check if token has reached max uses
+        if sharing_token.max_uses and sharing_token.current_uses >= sharing_token.max_uses:
+            raise InvalidTokenError("Sharing token has been exhausted")
+        
+        # Get the project and user
+        project = Project.query.get(sharing_token.project_id)
+        user = User.query.get(user_id)
+        
+        if not project:
+            raise SharingServiceError("Project not found")
+        
+        if not user:
+            raise SharingServiceError("User not found")
+        
+        # Check if user is already a collaborator
+        existing_collaborator = ProjectCollaborator.query.filter_by(
+            project_id=project.id,
+            user_id=user_id
+        ).first()
+        
+        if existing_collaborator:
+            return {
+                'success': True,
+                'message': f'You are already a collaborator on project "{project.name}"',
+                'project_id': project.id,
+                'role': existing_collaborator.role
+            }
+        
+        # Check if user is the project owner
+        if project.owner_id == user_id:
+            return {
+                'success': True,
+                'message': f'You are the owner of project "{project.name}"',
+                'project_id': project.id,
+                'role': 'owner'
+            }
+        
+        try:
+            # Add user as collaborator
+            collaborator = ProjectCollaborator(
+                project_id=project.id,
+                user_id=user_id,
+                role=sharing_token.role,
+                invited_by=sharing_token.created_by,
+                invited_at=datetime.utcnow(),
+                accepted_at=datetime.utcnow(),
+                status=ProjectCollaborator.STATUS_ACCEPTED
+            )
+            
+            db.session.add(collaborator)
+            
+            # Update token usage
+            sharing_token.current_uses += 1
+            
+            # If token has reached max uses, deactivate it
+            if sharing_token.max_uses and sharing_token.current_uses >= sharing_token.max_uses:
+                sharing_token.is_active = False
+            
+            # Log the activity
+            SharingActivityLog.log_activity(
+                project_id=project.id,
+                action='invitation_accepted',
+                user_id=user_id,
+                details=f"User {user.name} ({user.email}) accepted invitation for role '{sharing_token.role}'",
+                ip_address=self._get_client_ip(),
+                user_agent=self._get_user_agent()
+            )
+            
+            # Create invitation notification
+            InvitationNotification.create_notification(
+                project_id=project.id,
+                sender_user_id=sharing_token.created_by,
+                notification_type='invitation_accepted',
+                recipient_email=user.email,
+                sharing_token_id=sharing_token.id,
+                message=f"{user.name} accepted the invitation to join '{project.name}' as {sharing_token.role}"
+            )
+            
+            db.session.commit()
+            
+            logger.info(f"User {user_id} successfully added to project {project.id} with role {sharing_token.role}")
+            
+            return {
+                'success': True,
+                'message': f'Successfully joined project "{project.name}" as {sharing_token.role}',
+                'project_id': project.id,
+                'role': sharing_token.role
+            }
+            
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Failed to process sharing token for user {user_id}: {str(e)}")
+            raise SharingServiceError(f"Failed to process invitation: {str(e)}")
+
     def _is_azure_environment(self) -> bool:
         """
         Detect if the application is running in Azure App Service.

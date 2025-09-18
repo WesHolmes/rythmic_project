@@ -19,6 +19,9 @@ load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Important for OAuth flows
 
 # Force HTTPS in production (Azure App Service)
 if os.environ.get('FLASK_ENV') == 'production':
@@ -984,8 +987,16 @@ def login():
             
             # Check for pending sharing token
             if 'pending_sharing_token' in session:
-                token = session.get('pending_sharing_token')
-                return redirect(url_for('accept_sharing_invitation', token=token))
+                token = session.pop('pending_sharing_token')
+                try:
+                    from services.sharing_service import SharingService
+                    sharing_service = SharingService()
+                    result = sharing_service.process_sharing_token(token, user.id)
+                    flash(result['message'], 'success')
+                    return redirect(url_for('projects'))
+                except Exception as e:
+                    flash(f'Error processing invitation: {str(e)}', 'error')
+                    return redirect(url_for('projects'))
             
             # Check for next parameter (from invitation redirect)
             next_page = request.args.get('next')
@@ -1057,7 +1068,13 @@ def get_redirect_uri(endpoint):
 @app.route('/login/google')
 def login_google():
     redirect_uri = get_redirect_uri('authorize_google')
-    return google.authorize_redirect(redirect_uri)
+    
+    # Check if there's a pending sharing token and include it in the state
+    state = None
+    if 'pending_sharing_token' in session:
+        state = session['pending_sharing_token']
+    
+    return google.authorize_redirect(redirect_uri, state=state)
 
 @app.route('/login/github')
 def login_github():
@@ -1068,6 +1085,9 @@ def login_github():
 def authorize_google():
     try:
         token = google.authorize_access_token()
+        
+        # Get the state parameter (which contains the sharing token if present)
+        sharing_token = request.args.get('state')
         
         # Get user info from Google API
         resp = google.get('https://www.googleapis.com/oauth2/v2/userinfo', token=token)
@@ -1101,6 +1121,20 @@ def authorize_google():
                 db.session.commit()
             
             login_user(user)
+            
+            # Check for pending sharing token
+            if 'pending_sharing_token' in session:
+                token = session.pop('pending_sharing_token')
+                try:
+                    from services.sharing_service import SharingService
+                    sharing_service = SharingService()
+                    result = sharing_service.process_sharing_token(token, user.id)
+                    flash(result['message'], 'success')
+                    return redirect(url_for('projects'))
+                except Exception as e:
+                    flash(f'Error processing invitation: {str(e)}', 'error')
+                    return redirect(url_for('projects'))
+            
             return redirect(url_for('index'))
         else:
             flash('Failed to get user information from Google')
@@ -1151,6 +1185,20 @@ def authorize_github():
                 db.session.commit()
             
             login_user(user)
+            
+            # Check for pending sharing token
+            if 'pending_sharing_token' in session:
+                token = session.pop('pending_sharing_token')
+                try:
+                    from services.sharing_service import SharingService
+                    sharing_service = SharingService()
+                    result = sharing_service.process_sharing_token(token, user.id)
+                    flash(result['message'], 'success')
+                    return redirect(url_for('projects'))
+                except Exception as e:
+                    flash(f'Error processing invitation: {str(e)}', 'error')
+                    return redirect(url_for('projects'))
+            
             return redirect(url_for('index'))
         else:
             flash('Failed to get email from GitHub')
@@ -2210,7 +2258,7 @@ def would_create_circular_dependency(task_id, depends_on_id):
 @app.route('/sharing/accept/<token>')
 def accept_sharing_invitation(token):
     """Display sharing invitation acceptance page with token validation."""
-    from sharing_service import SharingService, InvalidTokenError, SharingServiceError
+    from services.sharing_service import SharingService, InvalidTokenError, SharingServiceError
     
     # Validate token and get invitation details
     sharing_token = SharingToken.query.filter_by(token=token).first()
@@ -2280,7 +2328,7 @@ def accept_sharing_invitation(token):
 @app.route('/sharing/accept/<token>', methods=['POST'])
 def process_sharing_invitation(token):
     """Process sharing invitation acceptance."""
-    from sharing_service import SharingService, InvalidTokenError, SharingServiceError
+    from services.sharing_service import SharingService, InvalidTokenError, SharingServiceError
     
     if not current_user.is_authenticated:
         # Store token in session and redirect to login
@@ -2321,7 +2369,7 @@ def process_sharing_invitation(token):
 @app.route('/sharing/decline/<token>', methods=['POST'])
 def decline_sharing_invitation(token):
     """Decline a sharing invitation."""
-    from sharing_service import SharingService, InvalidTokenError, SharingServiceError
+    from services.sharing_service import SharingService, InvalidTokenError, SharingServiceError
     
     if not current_user.is_authenticated:
         flash('Please log in to decline the project invitation.', 'info')
@@ -2682,7 +2730,7 @@ def remove_collaborator(id, user_id):
 def accept_sharing_invitation_api(token):
     """Accept a sharing invitation using a token."""
     try:
-        from sharing_service import SharingService, InvalidTokenError, SharingServiceError
+        from services.sharing_service import SharingService, InvalidTokenError, SharingServiceError
         
         # Check if user is authenticated
         if not current_user.is_authenticated:
@@ -3215,20 +3263,7 @@ def mark_invitation_notification_read(notification_id):
         }), 500
 
 # Process pending sharing token after login
-@app.after_request
-def process_pending_sharing_token(response):
-    """Process any pending sharing token after user logs in."""
-    if current_user.is_authenticated and 'pending_sharing_token' in session:
-        token = session.pop('pending_sharing_token')
-        try:
-            from sharing_service import SharingService
-            sharing_service = SharingService()
-            result = sharing_service.process_sharing_token(token, current_user.id)
-            flash(result['message'], 'success')
-        except Exception as e:
-            flash(f'Error processing invitation: {str(e)}', 'error')
-    
-    return response
+# Removed process_pending_sharing_token - now handled directly in OAuth callbacks
 
 def create_tables():
     """Create database tables if they don't exist"""
@@ -3272,7 +3307,7 @@ def health_check():
         # Check Azure services if available
         try:
             if hasattr(app, 'azure_services_manager'):
-                from azure_services_config import get_azure_services_status
+                from services.azure_services_config import get_azure_services_status
                 azure_status = get_azure_services_status()
                 health_status['services']['azure'] = {
                     'enabled_services': azure_status.get('enabled_services', []),

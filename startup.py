@@ -180,16 +180,20 @@ def main():
         
         logger.info(f"Starting Flask application on port {port}")
         
-        # Run with SocketIO support optimized for Azure
-        socketio.run(
-            app,
-            host='0.0.0.0',
-            port=port,
-            debug=False,
-            use_reloader=False,
-            allow_unsafe_werkzeug=True,  # Required for Azure App Service
-            log_output=True
-        )
+        # For Azure App Service on Linux, use gunicorn with eventlet
+        if os.environ.get('WEBSITE_SITE_NAME'):
+            # Azure App Service - let gunicorn handle the startup
+            logger.info("Azure App Service detected - application ready for gunicorn")
+            # Don't call socketio.run() - let gunicorn handle it
+        else:
+            # Local development
+            socketio.run(
+                app,
+                host='0.0.0.0',
+                port=port,
+                debug=False,
+                use_reloader=False
+            )
         
     except Exception as e:
         logger.error(f"Failed to start Flask application: {e}")

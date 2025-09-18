@@ -16,8 +16,9 @@ Flask-SocketIO==5.3.6
 python-socketio==5.11.0
 bleach==6.1.0
 
-# WebSocket support for Linux App Service
-eventlet==0.33.3
+# WebSocket support for Linux App Service (Python 3.12 compatible)
+gevent==23.9.1
+gevent-websocket==0.10.1
 
 # Database drivers for Linux
 psycopg2-binary>=2.9.0

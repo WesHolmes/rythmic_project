@@ -42,7 +42,7 @@ def get_azure_websocket_config():
             
             # CORS settings
             'cors_allowed_origins': "*",
-            'async_mode': 'threading'
+            'async_mode': 'gevent'  # Use gevent for Python 3.12 compatibility
         }
     else:
         # Local development settings

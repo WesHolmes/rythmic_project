@@ -203,7 +203,14 @@ class SharingManager {
             const result = await response.json();
 
             if (response.ok) {
-                this.showNotification('Invitation sent successfully!', 'success');
+                if (result.method === 'direct_add') {
+                    // User already exists - they were added directly
+                    this.showNotification(`${result.user_name} has been added to the project!`, 'success');
+                } else if (result.method === 'email') {
+                    // New user - invitation email sent
+                    this.showNotification('Invitation sent successfully!', 'success');
+                }
+                
                 this.closeModal(document.getElementById('sharing-modal'));
                 
                 // Refresh collaborators if modal is open

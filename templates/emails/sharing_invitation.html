@@ -1,156 +1,167 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="utf-8">
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Project Collaboration Invitation</title>
     <style>
-        body { 
-            font-family: Arial, sans-serif; 
-            line-height: 1.6; 
-            color: #333; 
-            margin: 0; 
-            padding: 0; 
-            background-color: #f5f5f5; 
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8fafc;
         }
-        .container { 
-            max-width: 600px; 
-            margin: 20px auto; 
-            background-color: white; 
-            border-radius: 8px; 
-            overflow: hidden; 
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1); 
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
-        .header { 
-            background-color: #3B82F6; 
-            color: white; 
-            padding: 30px 20px; 
-            text-align: center; 
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
         }
-        .header h1 { 
-            margin: 0; 
-            font-size: 24px; 
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #3b82f6;
+            margin-bottom: 10px;
         }
-        .header p { 
-            margin: 5px 0 0 0; 
-            opacity: 0.9; 
+        .title {
+            font-size: 28px;
+            font-weight: bold;
+            color: #1f2937;
+            margin-bottom: 10px;
         }
-        .content { 
-            padding: 30px; 
+        .subtitle {
+            color: #6b7280;
+            font-size: 16px;
         }
-        .project-info { 
-            background-color: #f8f9fa; 
-            padding: 20px; 
-            border-radius: 8px; 
-            margin: 20px 0; 
-            border-left: 4px solid #3B82F6; 
+        .content {
+            margin: 30px 0;
         }
-        .project-info h3 { 
-            margin-top: 0; 
-            color: #1f2937; 
+        .project-info {
+            background: #f3f4f6;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
         }
-        .button { 
-            display: inline-block; 
-            background-color: #3B82F6; 
-            color: white; 
-            padding: 14px 28px; 
-            text-decoration: none; 
-            border-radius: 6px; 
-            font-weight: bold; 
-            margin: 20px 0; 
-            transition: background-color 0.3s; 
+        .project-name {
+            font-size: 20px;
+            font-weight: bold;
+            color: #1f2937;
+            margin-bottom: 8px;
         }
-        .button:hover { 
-            background-color: #2563EB; 
+        .project-description {
+            color: #6b7280;
+            margin-bottom: 15px;
         }
-        .personal-message { 
-            background-color: #e3f2fd; 
-            padding: 15px; 
-            border-radius: 6px; 
-            margin: 15px 0; 
-            font-style: italic; 
-            border-left: 3px solid #2196F3; 
+        .role-badge {
+            display: inline-block;
+            background: #dbeafe;
+            color: #1e40af;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
         }
-        .footer { 
-            background-color: #f8f9fa; 
-            text-align: center; 
-            color: #666; 
-            font-size: 12px; 
-            padding: 20px; 
-            border-top: 1px solid #e9ecef; 
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            color: white;
+            text-decoration: none;
+            padding: 16px 32px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 16px;
+            margin: 20px 0;
+            text-align: center;
         }
-        .role-badge { 
-            background-color: #10B981; 
-            color: white; 
-            padding: 4px 8px; 
-            border-radius: 4px; 
-            font-size: 12px; 
-            font-weight: bold; 
-            text-transform: uppercase; 
+        .cta-button:hover {
+            background: linear-gradient(135deg, #2563eb, #7c3aed);
         }
-        .link-box { 
-            word-break: break-all; 
-            background-color: #f1f1f1; 
-            padding: 10px; 
-            border-radius: 4px; 
-            font-family: monospace; 
-            font-size: 12px; 
-            border: 1px solid #ddd; 
+        .personal-message {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 16px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
         }
-        .warning { 
-            background-color: #fff3cd; 
-            border: 1px solid #ffeaa7; 
-            color: #856404; 
-            padding: 12px; 
-            border-radius: 4px; 
-            margin: 15px 0; 
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+            text-align: center;
+            color: #6b7280;
+            font-size: 14px;
         }
-        .center { 
-            text-align: center; 
+        .expiry-notice {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #dc2626;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            margin: 20px 0;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>{{ app_name }}</h1>
-            <p>Project Collaboration Invitation</p>
+            <div class="logo">{{ app_name }}</div>
+            <h1 class="title">You're Invited to Collaborate!</h1>
+            <p class="subtitle">{{ inviter_name }} has invited you to join a project</p>
         </div>
-        
+
         <div class="content">
-            <h2>You've been invited to collaborate!</h2>
-            <p><strong>{{ inviter_name }}</strong> has invited you to collaborate on a project.</p>
-            
             <div class="project-info">
-                <h3>{{ project.name }}</h3>
-                <p><strong>Description:</strong> {{ project.description or 'No description provided' }}</p>
-                <p><strong>Your role:</strong> <span class="role-badge">{{ role }}</span></p>
-                <p><strong>Permissions:</strong> You'll be able to {{ role_description }}.</p>
+                <div class="project-name">{{ project.name }}</div>
+                {% if project.description %}
+                <div class="project-description">{{ project.description }}</div>
+                {% endif %}
+                <div>
+                    <span class="role-badge">{{ role.title() }} Access</span>
+                    <span style="margin-left: 10px; color: #6b7280; font-size: 14px;">
+                        You can {{ role_description }}
+                    </span>
+                </div>
             </div>
-            
+
             {% if personal_message %}
             <div class="personal-message">
-                <strong>Personal message:</strong><br>
-                {{ personal_message }}
+                <strong>Personal message from {{ inviter_name }}:</strong><br>
+                "{{ personal_message }}"
             </div>
             {% endif %}
-            
-            <div class="center">
-                <a href="{{ sharing_url }}" class="button">Accept Invitation</a>
+
+            <div style="text-align: center;">
+                <a href="{{ sharing_url }}" class="cta-button">
+                    Accept Invitation & Join Project
+                </a>
             </div>
-            
-            <div class="warning">
-                <strong>⏰ Important:</strong> This invitation will expire {{ expires_text }}. 
-                Click the button above to accept and start collaborating.
+
+            <div class="expiry-notice">
+                ⏰ <strong>This invitation expires {{ expires_text }}.</strong> 
+                Please accept it soon to start collaborating!
             </div>
-            
-            <p><strong>Alternative access:</strong> If the button doesn't work, you can copy and paste this link into your browser:</p>
-            <div class="link-box">{{ sharing_url }}</div>
+
+            <p style="color: #6b7280; font-size: 14px;">
+                If you don't have an account yet, you can sign up with Google or create a local account when you click the link above.
+            </p>
         </div>
-        
+
         <div class="footer">
-            <p>This invitation was sent by {{ inviter_name }} through {{ app_name }}.</p>
-            <p>If you didn't expect this invitation, you can safely ignore this email.</p>
+            <p>
+                This invitation was sent by {{ inviter_name }} through {{ app_name }}.<br>
+                If you didn't expect this invitation, you can safely ignore this email.
+            </p>
+            <p style="margin-top: 10px;">
+                <a href="{{ sharing_url }}" style="color: #3b82f6;">{{ sharing_url }}</a>
+            </p>
         </div>
     </div>
 </body>

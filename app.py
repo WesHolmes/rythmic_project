@@ -2718,6 +2718,46 @@ def accept_sharing_invitation_api(token):
         }), 500
 
 
+@app.route('/api/test-email', methods=['POST'])
+@login_required
+def test_email_sharing():
+    """Test route to verify email sharing functionality"""
+    try:
+        from services.sharing_service import SharingService
+        
+        data = request.get_json()
+        test_email = data.get('email', current_user.email)
+        
+        # Create a test project for demonstration
+        test_project = type('TestProject', (), {
+            'id': 1,
+            'name': 'Test Project',
+            'description': 'This is a test project for email sharing'
+        })()
+        
+        sharing_service = SharingService()
+        
+        # Generate test sharing link
+        sharing_url, token = sharing_service.generate_sharing_link(
+            project_id=1,
+            role='viewer',
+            expires_hours=24,
+            created_by=current_user.id
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': 'Email sharing test completed',
+            'sharing_url': sharing_url,
+            'test_email': test_email
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'error': f'Test failed: {str(e)}'
+        }), 500
+
+
 @app.route('/api/projects/<int:id>/sharing/tokens', methods=['GET'])
 @login_required
 def get_project_sharing_tokens(id):

@@ -45,13 +45,18 @@ class SharingService:
     """
     
     def __init__(self):
-        # Azure-compatible email configuration
-        # Priority: Azure Communication Services > SMTP
+        # Email configuration priority: SendGrid > Azure Communication Services > SMTP
+        self.sendgrid_api_key = os.environ.get('SENDGRID_API_KEY')
+        self.use_sendgrid = self.sendgrid_api_key is not None
+        
         self.use_azure_communication = os.environ.get('AZURE_COMMUNICATION_CONNECTION_STRING') is not None
         
-        if self.use_azure_communication:
+        if self.use_sendgrid:
+            self.from_email = os.environ.get('FROM_EMAIL', 'noreply@yourapp.com')
+        elif self.use_azure_communication:
             self.azure_comm_connection_string = os.environ.get('AZURE_COMMUNICATION_CONNECTION_STRING')
             self.azure_comm_sender_email = os.environ.get('AZURE_COMMUNICATION_SENDER_EMAIL')
+            self.from_email = self.azure_comm_sender_email
         else:
             # Fallback to SMTP (for local development or non-Azure deployments)
             self.smtp_server = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
@@ -287,7 +292,7 @@ class SharingService:
 
     def _send_email(self, to_email: str, subject: str, html_content: str) -> None:
         """
-        Send an email using Azure Communication Services or SMTP fallback.
+        Send an email using SendGrid, Azure Communication Services, or SMTP fallback.
         
         Args:
             to_email: Recipient email address
@@ -297,11 +302,53 @@ class SharingService:
         Raises:
             EmailDeliveryError: If email delivery fails
         """
-        if self.use_azure_communication:
+        if self.use_sendgrid:
+            self._send_email_sendgrid(to_email, subject, html_content)
+        elif self.use_azure_communication:
             self._send_email_azure(to_email, subject, html_content)
         else:
             self._send_email_smtp(to_email, subject, html_content)
     
+    def _send_email_sendgrid(self, to_email: str, subject: str, html_content: str) -> None:
+        """
+        Send email using SendGrid API.
+        
+        Args:
+            to_email: Recipient email address
+            subject: Email subject
+            html_content: HTML email content
+            
+        Raises:
+            EmailDeliveryError: If email delivery fails
+        """
+        try:
+            # Try to import SendGrid
+            from sendgrid import SendGridAPIClient
+            from sendgrid.helpers.mail import Mail
+            
+            if not self.sendgrid_api_key:
+                raise EmailDeliveryError("SendGrid API key not configured")
+            
+            # Create email message
+            message = Mail(
+                from_email=self.from_email,
+                to_emails=to_email,
+                subject=subject,
+                html_content=html_content
+            )
+            
+            # Send email
+            sg = SendGridAPIClient(api_key=self.sendgrid_api_key)
+            response = sg.send(message)
+            
+            if response.status_code not in [200, 201, 202]:
+                raise EmailDeliveryError(f"SendGrid returned status code: {response.status_code}")
+                
+        except ImportError:
+            raise EmailDeliveryError("SendGrid library not installed. Run: pip install sendgrid")
+        except Exception as e:
+            raise EmailDeliveryError(f"Failed to send email via SendGrid: {str(e)}")
+
     def _send_email_azure(self, to_email: str, subject: str, html_content: str) -> None:
         """
         Send email using Azure Communication Services.

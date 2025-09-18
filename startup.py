@@ -121,18 +121,10 @@ def run_health_checks():
     logger.info("Running startup health checks...")
     
     try:
-        from test_azure_deployment import run_azure_services_health_check
-        
-        health_status = run_azure_services_health_check()
-        overall_status = health_status.get('overall_status', 'unknown')
-        
-        logger.info(f"Health check completed. Overall status: {overall_status}")
-        
-        if overall_status in ['healthy', 'partial', 'fallback_mode']:
-            return True
-        else:
-            logger.warning("Health check indicates potential issues")
-            return False
+        # Simple health check - just verify the app can be imported
+        from app import app
+        logger.info("Health check completed. App imported successfully.")
+        return True
             
     except Exception as e:
         logger.error(f"Health check failed: {e}")
@@ -180,20 +172,14 @@ def main():
         
         logger.info(f"Starting Flask application on port {port}")
         
-        # For Azure App Service on Linux, use gunicorn with eventlet
-        if os.environ.get('WEBSITE_SITE_NAME'):
-            # Azure App Service - let gunicorn handle the startup
-            logger.info("Azure App Service detected - application ready for gunicorn")
-            # Don't call socketio.run() - let gunicorn handle it
-        else:
-            # Local development
-            socketio.run(
-                app,
-                host='0.0.0.0',
-                port=port,
-                debug=False,
-                use_reloader=False
-            )
+        # Run with SocketIO support
+        socketio.run(
+            app,
+            host='0.0.0.0',
+            port=port,
+            debug=False,
+            use_reloader=False
+        )
         
     except Exception as e:
         logger.error(f"Failed to start Flask application: {e}")

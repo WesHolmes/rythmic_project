@@ -1,0 +1,27 @@
+{
+  "name": "Azure App Service Linux Configuration",
+  "description": "Configuration settings for deploying Python Flask app on Azure App Service Linux",
+  "platform": "linux",
+  "runtime": "python-3.12",
+  "required_settings": {
+    "WEBSITES_ENABLE_APP_SERVICE_STORAGE": "false",
+    "SCM_DO_BUILD_DURING_DEPLOYMENT": "true",
+    "WEBSITE_RUN_FROM_PACKAGE": "0",
+    "PYTHONPATH": "/home/site/wwwroot",
+    "FLASK_ENV": "production"
+  },
+  "startup_command": "gunicorn --bind=0.0.0.0:$PORT --timeout 600 --worker-class eventlet --workers 1 application:application",
+  "files_required": [
+    "runtime.txt",
+    "requirements.txt", 
+    "application.py",
+    "app.py",
+    "Procfile",
+    "startup.txt"
+  ],
+  "azure_portal_settings": {
+    "stack": "Python",
+    "major_version": "Python 3.12",
+    "startup_command": "gunicorn --bind=0.0.0.0:$PORT --timeout 600 --worker-class eventlet --workers 1 application:application"
+  }
+}

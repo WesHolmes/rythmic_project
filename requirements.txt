@@ -22,8 +22,7 @@ gevent-websocket==0.10.1
 
 # Database drivers for cross-platform compatibility
 pyodbc==5.1.0
-# Alternative database drivers for Azure compatibility
-pymssql==2.2.8
+# PostgreSQL driver for Azure compatibility
 psycopg2-binary>=2.9.0
 
 # Azure services for production deployment

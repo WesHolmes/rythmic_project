@@ -186,20 +186,25 @@ def get_database_url() -> str:
         str: Database connection URL
     """
     # Try Azure SQL Database first
-    azure_sql_url = get_azure_sql_url()
-    if azure_sql_url:
-        is_valid, error = validate_connection(azure_sql_url)
-        if is_valid:
-            logger.info("Using Azure SQL Database")
-            return azure_sql_url
-        else:
-            logger.warning(f"Azure SQL Database connection failed: {error}")
-            
-            # In Azure, we should not fall back to SQLite as it won't persist
-            if is_azure_environment():
-                logger.error("Azure SQL Database connection failed in Azure environment.")
-                # Still return Azure SQL URL to let the application handle the error appropriately
+    try:
+        azure_sql_url = get_azure_sql_url()
+        if azure_sql_url:
+            is_valid, error = validate_connection(azure_sql_url)
+            if is_valid:
+                logger.info("Using Azure SQL Database")
                 return azure_sql_url
+            else:
+                logger.warning(f"Azure SQL Database connection failed: {error}")
+                
+                # In Azure, we should not fall back to SQLite as it won't persist
+                if is_azure_environment():
+                    logger.error("Azure SQL Database connection failed in Azure environment.")
+                    # Still return Azure SQL URL to let the application handle the error appropriately
+                    return azure_sql_url
+    except ImportError as e:
+        logger.warning(f"pyodbc not available, skipping Azure SQL Database: {e}")
+    except Exception as e:
+        logger.warning(f"Error with Azure SQL Database configuration: {e}")
     
     # Try PostgreSQL as fallback
     postgresql_url = get_postgresql_url()

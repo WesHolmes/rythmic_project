@@ -3576,8 +3576,7 @@ def azure_services_status():
             'error': 'Failed to get Azure services status',
             'details': str(e)
         }), 500
-# Init
-ialize database tables
+# Initialize database tables
 def create_tables():
     """Create database tables if they don't exist"""
     try:

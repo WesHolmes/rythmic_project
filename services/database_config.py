@@ -67,8 +67,20 @@ def get_azure_sql_url() -> Optional[str]:
     database = os.environ.get('AZURE_SQL_DATABASE')
     
     if all([server, user, password, database]):
-        # Azure SQL connection string with pyodbc driver (cross-platform compatible)
-        return f"mssql+pyodbc://{user}:{password}@{server}:1433/{database}?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=yes&TrustServerCertificate=no&Connection+Timeout=30"
+        # Try pyodbc first, fallback to pymssql
+        try:
+            import pyodbc
+            logger.info("Using pyodbc driver for Azure SQL")
+            return f"mssql+pyodbc://{user}:{password}@{server}:1433/{database}?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=yes&TrustServerCertificate=no&Connection+Timeout=30"
+        except ImportError:
+            try:
+                import pymssql
+                logger.info("Using pymssql driver for Azure SQL (pyodbc not available)")
+                return f"mssql+pymssql://{user}:{password}@{server}:1433/{database}?charset=utf8&encrypt=true"
+            except ImportError:
+                logger.error("Neither pyodbc nor pymssql available for Azure SQL connection")
+                # Return pyodbc URL anyway - let the app handle the error
+                return f"mssql+pyodbc://{user}:{password}@{server}:1433/{database}?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=yes&TrustServerCertificate=no&Connection+Timeout=30"
     
     return None
 

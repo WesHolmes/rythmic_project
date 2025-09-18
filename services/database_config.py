@@ -67,20 +67,20 @@ def get_azure_sql_url() -> Optional[str]:
     database = os.environ.get('AZURE_SQL_DATABASE')
     
     if all([server, user, password, database]):
-        # Try pyodbc first, fallback to pymssql
-        try:
-            import pyodbc
-            logger.info("Using pyodbc driver for Azure SQL")
-            return f"mssql+pyodbc://{user}:{password}@{server}:1433/{database}?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=yes&TrustServerCertificate=no&Connection+Timeout=30"
-        except ImportError:
-            try:
-                import pymssql
-                logger.info("Using pymssql driver for Azure SQL (pyodbc not available)")
-                return f"mssql+pymssql://{user}:{password}@{server}:1433/{database}?charset=utf8&encrypt=true"
-            except ImportError:
-                logger.error("Neither pyodbc nor pymssql available for Azure SQL connection")
-                # Return pyodbc URL anyway - let the app handle the error
-                return f"mssql+pyodbc://{user}:{password}@{server}:1433/{database}?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=yes&TrustServerCertificate=no&Connection+Timeout=30"
+        # For Azure Linux App Service, we'll use PostgreSQL instead of SQL Server
+        # as SQL Server requires ODBC drivers that aren't available by default
+        logger.warning("Azure SQL Server detected but ODBC drivers not available on Linux App Service")
+        logger.warning("Consider using Azure Database for PostgreSQL instead")
+        
+        # Try to fall back to PostgreSQL if available
+        postgresql_url = get_postgresql_url()
+        if postgresql_url:
+            logger.info("Falling back to PostgreSQL database")
+            return postgresql_url
+        
+        # If no PostgreSQL available, return None to trigger SQLite fallback
+        logger.error("No suitable database driver available for Azure SQL Server on Linux App Service")
+        return None
     
     return None
 

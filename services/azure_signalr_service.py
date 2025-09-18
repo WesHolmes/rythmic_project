@@ -226,7 +226,9 @@ class AzureSignalRService:
                 'async_mode': 'threading',
                 'logger': True,
                 'engineio_logger': False,
-                'transport': ['websocket', 'polling'],
+                'transports': ['polling', 'websocket'],  # Polling first for Azure compatibility
+                'ping_timeout': 60,
+                'ping_interval': 25,
                 'azure_signalr': True
             }
         else:
@@ -234,7 +236,11 @@ class AzureSignalRService:
                 'cors_allowed_origins': "*",
                 'async_mode': 'threading',
                 'logger': True,
-                'engineio_logger': False
+                'engineio_logger': False,
+                'transports': ['polling', 'websocket'],  # Polling first for Azure compatibility
+                'ping_timeout': 60,
+                'ping_interval': 25,
+                'always_connect': True
             }
 
 

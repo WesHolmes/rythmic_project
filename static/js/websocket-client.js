@@ -146,16 +146,20 @@ class ProjectWebSocketClient {
             
             this.connectionState = 'connecting';
             
-            // Initialize Socket.IO connection with optimized settings
+            // Initialize Socket.IO connection with Azure-optimized settings
             this.socket = io({
-                transports: ['websocket', 'polling'], // Fallback to polling for Azure compatibility
+                transports: ['polling', 'websocket'], // Start with polling for Azure compatibility
                 upgrade: true,
-                rememberUpgrade: true,
-                timeout: 5000, // Faster timeout for quicker reconnection
+                rememberUpgrade: false, // Don't remember upgrade on Azure
+                timeout: 10000, // Longer timeout for Azure
                 forceNew: true, // Force new connection to avoid stale connections
                 reconnection: true,
-                reconnectionAttempts: 3,
-                reconnectionDelay: 1000
+                reconnectionAttempts: 5,
+                reconnectionDelay: 2000,
+                reconnectionDelayMax: 10000,
+                maxReconnectionAttempts: 5,
+                pingTimeout: 60000,
+                pingInterval: 25000
             });
             
             this.setupEventHandlers();

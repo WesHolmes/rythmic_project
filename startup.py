@@ -180,13 +180,15 @@ def main():
         
         logger.info(f"Starting Flask application on port {port}")
         
-        # Run with SocketIO support
+        # Run with SocketIO support optimized for Azure
         socketio.run(
             app,
             host='0.0.0.0',
             port=port,
             debug=False,
-            use_reloader=False
+            use_reloader=False,
+            allow_unsafe_werkzeug=True,  # Required for Azure App Service
+            log_output=True
         )
         
     except Exception as e:

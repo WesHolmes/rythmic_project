@@ -85,6 +85,11 @@ db = SQLAlchemy(app)
 
 # Initialize SocketIO with Azure-compatible configuration
 try:
+    from azure_websocket_config import get_azure_socketio_kwargs, configure_azure_headers
+    
+    # Configure Azure-specific headers
+    app = configure_azure_headers(app)
+    
     # Try to get Azure SignalR configuration
     signalr_config = app.config.get('AZURE_SIGNALR_CONFIG')
     if signalr_config and signalr_config.enabled:
@@ -94,21 +99,22 @@ try:
         socketio = SocketIO(app, **socketio_config)
         print("SocketIO configured with Azure SignalR Service")
     else:
-        # Fallback to local WebSocket configuration
-        socketio = SocketIO(app, 
-                           cors_allowed_origins="*",  # Configure appropriately for production
-                           async_mode='threading',    # Use threading for Azure App Service compatibility
-                           logger=True, 
-                           engineio_logger=True)
-        print("SocketIO configured with local WebSocket fallback")
+        # Use Azure-optimized WebSocket configuration
+        azure_kwargs = get_azure_socketio_kwargs()
+        socketio = SocketIO(app, **azure_kwargs)
+        print("SocketIO configured with Azure-optimized WebSocket fallback")
+        
 except Exception as e:
     print(f"Error configuring SocketIO: {e}")
     # Fallback configuration
     socketio = SocketIO(app, 
                        cors_allowed_origins="*",
                        async_mode='threading',
+                       transports=['polling', 'websocket'],
+                       ping_timeout=60,
+                       ping_interval=25,
                        logger=True, 
-                       engineio_logger=True)
+                       engineio_logger=False)
 
 # Database Models
 class User(UserMixin, db.Model):

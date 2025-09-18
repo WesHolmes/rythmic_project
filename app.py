@@ -60,8 +60,6 @@ try:
     database_url = get_database_url()
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
     print(f"Using database configuration from database_config.py")
-    
-    print("Using standard database configuration")
         
 except Exception as e:
     # Fallback to simple configuration if database_config fails

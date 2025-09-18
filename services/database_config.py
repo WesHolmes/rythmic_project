@@ -54,7 +54,7 @@ def get_azure_sql_url() -> Optional[str]:
         if database_url.startswith('mssql://'):
             return database_url
         elif database_url.startswith('sqlserver://'):
-            return database_url.replace('sqlserver://', 'mssql+pymssql://', 1)
+            return database_url.replace('sqlserver://', 'mssql+pyodbc://', 1)
         elif 'mssql+pyodbc://' in database_url:
             # Keep pyodbc URLs as-is for Azure compatibility
             return database_url
@@ -67,7 +67,7 @@ def get_azure_sql_url() -> Optional[str]:
     database = os.environ.get('AZURE_SQL_DATABASE')
     
     if all([server, user, password, database]):
-        # Azure SQL connection string with pyodbc driver (Azure's preferred driver)
+        # Azure SQL connection string with pyodbc driver (cross-platform compatible)
         return f"mssql+pyodbc://{user}:{password}@{server}:1433/{database}?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=yes&TrustServerCertificate=no&Connection+Timeout=30"
     
     return None

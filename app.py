@@ -26,6 +26,8 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Important for OAuth flows
 # Configure static file serving for Azure
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 31536000  # 1 year cache for static files
 
+# Static file serving will be handled by Flask route below
+
 # Force HTTPS in production (Azure App Service)
 if os.environ.get('FLASK_ENV') == 'production':
     app.config['PREFERRED_URL_SCHEME'] = 'https'
@@ -36,12 +38,223 @@ if 'azurewebsites.net' in os.environ.get('HTTP_HOST', '') or os.environ.get('WEB
     app.config['AZURE_APP_SERVICE'] = True
     print("Detected Azure App Service environment - configuring static file handling")
     
-    # Configure Azure-specific static file handling
+    # Using Flask route for static file handling on Azure
+    print("Azure App Service detected - using Flask static file handler")
+
+# Direct static file handler for Azure App Service
+# Configure static file serving for Azure App Service on Linux
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    """Serve static files with proper MIME types for Azure App Service on Linux"""
+    from flask import Response
+    import os
+    import mimetypes
+    
+    print(f"[STATIC] Request for: {filename}")
+    
     try:
-        from azure_static_handler import configure_azure_static_files
-        configure_azure_static_files(app)
-    except ImportError as e:
-        print(f"Could not import Azure static handler: {e}")
+        # Get static folder path
+        static_folder = app.static_folder or os.path.join(app.root_path, 'static')
+        file_path = os.path.join(static_folder, filename)
+        
+        print(f"[STATIC] Looking for file at: {file_path}")
+        print(f"[STATIC] File exists: {os.path.exists(file_path)}")
+        
+        # Check if file exists
+        if not os.path.exists(file_path):
+            print(f"[STATIC] File not found: {file_path}")
+            return "File not found", 404
+        
+        # Read file content
+        with open(file_path, 'rb') as f:
+            content = f.read()
+        
+        print(f"[STATIC] File size: {len(content)} bytes")
+        
+        # Determine MIME type
+        mime_type = 'application/octet-stream'
+        if filename.endswith('.css'):
+            mime_type = 'text/css'
+        elif filename.endswith('.js'):
+            mime_type = 'application/javascript'
+        elif filename.endswith('.json'):
+            mime_type = 'application/json'
+        elif filename.endswith('.png'):
+            mime_type = 'image/png'
+        elif filename.endswith('.jpg') or filename.endswith('.jpeg'):
+            mime_type = 'image/jpeg'
+        elif filename.endswith('.gif'):
+            mime_type = 'image/gif'
+        elif filename.endswith('.svg'):
+            mime_type = 'image/svg+xml'
+        elif filename.endswith('.woff'):
+            mime_type = 'font/woff'
+        elif filename.endswith('.woff2'):
+            mime_type = 'font/woff2'
+        elif filename.endswith('.ttf'):
+            mime_type = 'font/ttf'
+        elif filename.endswith('.ico'):
+            mime_type = 'image/x-icon'
+        
+        print(f"[STATIC] MIME type: {mime_type}")
+        
+        # Create response
+        response = Response(content, mimetype=mime_type)
+        response.headers['Cache-Control'] = 'public, max-age=31536000'
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        
+        print(f"[STATIC] Successfully serving {filename}")
+        return response
+        
+    except Exception as e:
+        print(f"[STATIC] Error serving {filename}: {e}")
+        import traceback
+        traceback.print_exc()
+        return f"Error: {str(e)}", 500
+
+@app.route('/debug-static')
+def debug_static():
+    """Debug route to test static file serving"""
+    import os
+    
+    static_folder = app.static_folder or os.path.join(app.root_path, 'static')
+    
+    debug_info = {
+        'static_folder': static_folder,
+        'static_folder_exists': os.path.exists(static_folder),
+        'files': []
+    }
+    
+    if os.path.exists(static_folder):
+        for root, dirs, files in os.walk(static_folder):
+            for file in files:
+                rel_path = os.path.relpath(os.path.join(root, file), static_folder)
+                full_path = os.path.join(root, file)
+                debug_info['files'].append({
+                    'path': rel_path,
+                    'exists': os.path.exists(full_path),
+                    'size': os.path.getsize(full_path) if os.path.exists(full_path) else 0
+                })
+    
+    return jsonify(debug_info)
+
+@app.route('/test-static-files')
+def test_static_files():
+    """Simple test page to verify static files are loading"""
+    return '''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Static Files Test</title>
+        <link rel="stylesheet" href="/static/css/style.css">
+        <style>
+            body { 
+                font-family: Arial, sans-serif; 
+                margin: 40px; 
+                background: #000; 
+                color: #fff; 
+            }
+            .test-box { 
+                background: #333; 
+                padding: 20px; 
+                margin: 20px 0; 
+                border-radius: 8px;
+                border: 1px solid #555;
+            }
+            .success { color: #4ade80; }
+            .error { color: #ef4444; }
+            .loading { color: #fbbf24; }
+        </style>
+    </head>
+    <body>
+        <h1>Static Files Test</h1>
+        
+        <div class="test-box">
+            <h2>CSS Test</h2>
+            <p id="css-status" class="loading">Testing CSS...</p>
+        </div>
+        
+        <div class="test-box">
+            <h2>JavaScript Test</h2>
+            <p id="js-status" class="loading">Testing JavaScript...</p>
+        </div>
+        
+        <div class="test-box">
+            <h2>Direct File Links</h2>
+            <ul>
+                <li><a href="/static/css/style.css" target="_blank" style="color: #60a5fa;">style.css</a></li>
+                <li><a href="/static/js/main.js" target="_blank" style="color: #60a5fa;">main.js</a></li>
+                <li><a href="/static/js/websocket-client.js" target="_blank" style="color: #60a5fa;">websocket-client.js</a></li>
+            </ul>
+        </div>
+        
+        <div class="test-box">
+            <h2>Console Output</h2>
+            <p>Check browser console for detailed loading information</p>
+        </div>
+        
+        <script>
+            // Test CSS loading
+            function testCSS() {
+                fetch('/static/css/style.css')
+                    .then(response => {
+                        console.log('CSS Response:', response.status, response.headers.get('content-type'));
+                        if (response.ok && response.headers.get('content-type').includes('text/css')) {
+                            document.getElementById('css-status').innerHTML = '<span class="success">✓ CSS loading correctly</span>';
+                        } else {
+                            document.getElementById('css-status').innerHTML = '<span class="error">✗ CSS failed: ' + response.status + ' - ' + response.headers.get('content-type') + '</span>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('CSS Error:', error);
+                        document.getElementById('css-status').innerHTML = '<span class="error">✗ CSS error: ' + error.message + '</span>';
+                    });
+            }
+            
+            // Test JS loading
+            function testJS() {
+                fetch('/static/js/main.js')
+                    .then(response => {
+                        console.log('JS Response:', response.status, response.headers.get('content-type'));
+                        if (response.ok && response.headers.get('content-type').includes('javascript')) {
+                            document.getElementById('js-status').innerHTML = '<span class="success">✓ JavaScript loading correctly</span>';
+                        } else {
+                            document.getElementById('js-status').innerHTML = '<span class="error">✗ JS failed: ' + response.status + ' - ' + response.headers.get('content-type') + '</span>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('JS Error:', error);
+                        document.getElementById('js-status').innerHTML = '<span class="error">✗ JS error: ' + error.message + '</span>';
+                    });
+            }
+            
+            // Run tests
+            testCSS();
+            testJS();
+        </script>
+    </body>
+    </html>
+    '''
+
+@app.route('/test-static-direct')
+def test_static_direct():
+    """Test static file serving directly"""
+    import os
+    
+    # Try to read the CSS file directly
+    static_folder = app.static_folder or os.path.join(app.root_path, 'static')
+    css_file = os.path.join(static_folder, 'css', 'style.css')
+    
+    if os.path.exists(css_file):
+        with open(css_file, 'r') as f:
+            content = f.read()
+        
+        from flask import Response
+        response = Response(content, mimetype='text/css')
+        response.headers['Cache-Control'] = 'public, max-age=31536000'
+        return response
+    else:
+        return f"CSS file not found at: {css_file}", 404
 
 # Handle Azure App Service proxy headers
 @app.before_request
@@ -3410,57 +3623,6 @@ def health_check():
             'error': str(e),
             'timestamp': datetime.utcnow().isoformat()
         }), 503
-
-@app.route('/static/<path:filename>')
-def serve_static_file(filename):
-    """Serve static files with proper MIME types for Azure App Service"""
-    from flask import send_from_directory, current_app
-    import mimetypes
-    import os
-    
-    try:
-        # Get the static folder path
-        static_folder = current_app.static_folder
-        file_path = os.path.join(static_folder, filename)
-        
-        # Check if file exists
-        if not os.path.exists(file_path):
-            return "File not found", 404
-        
-        # Determine MIME type
-        mime_type, _ = mimetypes.guess_type(filename)
-        
-        # Set specific MIME types for common file extensions
-        if filename.endswith('.css'):
-            mime_type = 'text/css'
-        elif filename.endswith('.js'):
-            mime_type = 'application/javascript'
-        elif filename.endswith('.json'):
-            mime_type = 'application/json'
-        elif filename.endswith('.woff'):
-            mime_type = 'font/woff'
-        elif filename.endswith('.woff2'):
-            mime_type = 'font/woff2'
-        elif filename.endswith('.ttf'):
-            mime_type = 'font/ttf'
-        elif filename.endswith('.eot'):
-            mime_type = 'application/vnd.ms-fontobject'
-        elif filename.endswith('.svg'):
-            mime_type = 'image/svg+xml'
-        
-        # Send file with proper MIME type
-        response = send_from_directory(static_folder, filename)
-        if mime_type:
-            response.headers['Content-Type'] = mime_type
-        
-        # Add cache headers for static files
-        response.headers['Cache-Control'] = 'public, max-age=31536000'  # 1 year
-        
-        return response
-        
-    except Exception as e:
-        print(f"Error serving static file {filename}: {e}")
-        return f"Error serving file: {str(e)}", 500
 
 @app.route('/api/azure/status')
 @login_required

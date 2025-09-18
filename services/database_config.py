@@ -49,15 +49,18 @@ def get_azure_sql_url() -> Optional[str]:
     """
     # Check for complete DATABASE_URL first
     database_url = os.environ.get('DATABASE_URL')
-    if database_url:
+    if database_url and database_url != "REQUIRED: Azure SQL Database connection string":
         # Handle different SQL Server URL formats
         if database_url.startswith('mssql://'):
             return database_url
         elif database_url.startswith('sqlserver://'):
-            return database_url.replace('sqlserver://', 'mssql+pyodbc://', 1)
-        elif 'mssql+pyodbc://' in database_url:
-            # Keep pyodbc URLs as-is for Azure compatibility
+            return database_url.replace('sqlserver://', 'mssql+pymssql://', 1)
+        elif 'mssql+pymssql://' in database_url:
+            # Keep pymssql URLs as-is for Azure compatibility
             return database_url
+        elif 'mssql+pyodbc://' in database_url:
+            # Convert pyodbc URLs to pymssql for better Azure App Service Linux compatibility
+            return database_url.replace('mssql+pyodbc://', 'mssql+pymssql://', 1)
         return database_url
     
     # Build from individual components for Azure SQL
@@ -67,20 +70,9 @@ def get_azure_sql_url() -> Optional[str]:
     database = os.environ.get('AZURE_SQL_DATABASE')
     
     if all([server, user, password, database]):
-        # For Azure Linux App Service, we'll use PostgreSQL instead of SQL Server
-        # as SQL Server requires ODBC drivers that aren't available by default
-        logger.warning("Azure SQL Server detected but ODBC drivers not available on Linux App Service")
-        logger.warning("Consider using Azure Database for PostgreSQL instead")
-        
-        # Try to fall back to PostgreSQL if available
-        postgresql_url = get_postgresql_url()
-        if postgresql_url:
-            logger.info("Falling back to PostgreSQL database")
-            return postgresql_url
-        
-        # If no PostgreSQL available, return None to trigger SQLite fallback
-        logger.error("No suitable database driver available for Azure SQL Server on Linux App Service")
-        return None
+        # Generate Azure SQL connection URL with pymssql (no ODBC drivers needed)
+        logger.info("Using Azure SQL Database with pymssql driver")
+        return f"mssql+pymssql://{user}:{password}@{server}:1433/{database}?charset=utf8"
     
     return None
 
@@ -197,7 +189,23 @@ def get_database_url() -> str:
     Returns:
         str: Database connection URL
     """
-    # Try Azure SQL Database first
+    # In Azure environment, prioritize Azure SQL Database with pymssql (no ODBC drivers needed)
+    if is_azure_environment():
+        # Try Azure SQL Database first (now works with pymssql on Python 3.12)
+        azure_sql_url = get_azure_sql_url()
+        if azure_sql_url:
+            logger.info("Azure environment detected - using Azure SQL Database with pymssql")
+            return azure_sql_url
+        
+        # Fallback to PostgreSQL if Azure SQL Database not available
+        postgresql_url = get_postgresql_url()
+        if postgresql_url:
+            logger.info("Azure environment detected - using PostgreSQL database")
+            return postgresql_url
+        else:
+            raise RuntimeError("No database configured for Azure environment. Please set DATABASE_URL or individual Azure SQL/PostgreSQL environment variables.")
+    
+    # For local development, try Azure SQL Database first
     try:
         azure_sql_url = get_azure_sql_url()
         if azure_sql_url:
@@ -207,12 +215,6 @@ def get_database_url() -> str:
                 return azure_sql_url
             else:
                 logger.warning(f"Azure SQL Database connection failed: {error}")
-                
-                # In Azure, we should not fall back to SQLite as it won't persist
-                if is_azure_environment():
-                    logger.error("Azure SQL Database connection failed in Azure environment.")
-                    # Still return Azure SQL URL to let the application handle the error appropriately
-                    return azure_sql_url
     except ImportError as e:
         logger.warning(f"pyodbc not available, skipping Azure SQL Database: {e}")
     except Exception as e:
@@ -227,21 +229,10 @@ def get_database_url() -> str:
             return postgresql_url
         else:
             logger.warning(f"PostgreSQL connection failed: {error}")
-            
-            # In Azure, we should not fall back to SQLite as it won't persist
-            if is_azure_environment():
-                logger.error("PostgreSQL connection failed in Azure environment. SQLite fallback not recommended.")
-                # Still return PostgreSQL URL to let the application handle the error appropriately
-                return postgresql_url
     
-    # Fallback to SQLite
+    # Fallback to SQLite for local development only
     sqlite_url = get_sqlite_url()
-    
-    if is_azure_environment():
-        logger.warning("Using SQLite in Azure environment - data will not persist across restarts!")
-    else:
-        logger.info("Using SQLite database for local development")
-    
+    logger.info("Using SQLite database for local development")
     return sqlite_url
 
 

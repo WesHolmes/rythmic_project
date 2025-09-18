@@ -229,8 +229,7 @@ class AzureSignalRService:
                 'transports': ['polling', 'websocket'],  # Polling first for Azure compatibility
                 'ping_timeout': 60,
                 'ping_interval': 25,
-                'azure_signalr': True,
-                'async_mode': 'gevent'  # Use gevent for Python 3.12 compatibility
+                'azure_signalr': True
             }
         else:
             return {
@@ -241,8 +240,7 @@ class AzureSignalRService:
                 'transports': ['polling', 'websocket'],  # Polling first for Azure compatibility
                 'ping_timeout': 60,
                 'ping_interval': 25,
-                'always_connect': True,
-                'async_mode': 'gevent'  # Use gevent for Python 3.12 compatibility
+                'always_connect': True
             }
 
 

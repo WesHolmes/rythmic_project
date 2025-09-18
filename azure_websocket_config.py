@@ -42,7 +42,7 @@ def get_azure_websocket_config():
             
             # CORS settings
             'cors_allowed_origins': "*",
-            'async_mode': 'gevent'  # Use gevent for Python 3.12 compatibility
+            'async_mode': 'threading'  # Use threading for better Azure compatibility
         }
     else:
         # Local development settings
@@ -88,14 +88,12 @@ def get_azure_socketio_kwargs():
     if is_azure_app_service():
         return {
             'cors_allowed_origins': config['cors_allowed_origins'],
-            'async_mode': config['async_mode'],
+            'async_mode': 'threading',  # Use threading for Azure compatibility
             'transports': config['transports'],
             'ping_timeout': config['ping_timeout'],
             'ping_interval': config['ping_interval'],
             'logger': True,
-            'engineio_logger': False,
-            'always_connect': True,
-            'manage_session': False  # Let Azure handle session management
+            'engineio_logger': False
         }
     else:
         return {

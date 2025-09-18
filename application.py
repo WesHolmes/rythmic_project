@@ -22,14 +22,20 @@ if current_dir not in sys.path:
 
 try:
     # Import the Flask app and SocketIO
+    logger.info("Attempting to import Flask app...")
     from app import app, socketio
     
     logger.info("Successfully imported Flask app and SocketIO")
     
-    # For gunicorn with eventlet worker, we need to use the SocketIO WSGI app
+    # For gunicorn with gevent worker, we need to use the SocketIO WSGI app
     application = socketio
     
     logger.info("Application configured for Azure App Service Linux")
+    
+    # Test route to verify the app is working
+    @app.route('/test')
+    def test_route():
+        return {'status': 'success', 'message': 'App is working!'}, 200
     
 except Exception as e:
     logger.error(f"Error importing application: {e}")
@@ -48,6 +54,7 @@ except Exception as e:
         <p>Check the Azure logs for more details.</p>
         <p>Python version: {sys.version}</p>
         <p>Python path: {sys.path}</p>
+        <pre>{traceback.format_exc()}</pre>
         """, 500
     
     @application.route('/health')

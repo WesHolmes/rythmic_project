@@ -20,7 +20,7 @@ class ProjectWebSocketClient {
         // Debouncing for connection attempts
         this.connectionDebounceTimer = null;
         this.lastConnectionAttempt = 0;
-        this.minConnectionInterval = this.isAzure ? 15000 : 5000; // Different intervals for Azure vs local
+        this.minConnectionInterval = this.isAzure ? 30000 : 5000; // Different intervals for Azure vs local
         
         // Event callbacks
         this.onConnected = null;
@@ -145,7 +145,10 @@ class ProjectWebSocketClient {
         if (now - this.lastConnectionAttempt < this.minConnectionInterval) {
             console.log('Connection attempt too recent, debouncing...');
             this.connectionDebounceTimer = setTimeout(() => {
-                this.ensureConnection();
+                // Double-check we still need connection after delay
+                if (this.shouldBeConnected()) {
+                    this.ensureConnection();
+                }
             }, this.minConnectionInterval - (now - this.lastConnectionAttempt));
             return;
         }
@@ -275,11 +278,11 @@ class ProjectWebSocketClient {
                 transports: ['polling'], // Start with polling only for Azure stability
                 upgrade: false, // Disable upgrade to WebSocket for Azure
                 rememberUpgrade: false, // Don't remember upgrade on Azure
-                timeout: 20000, // Longer timeout for Azure
+                timeout: 30000, // Longer timeout for Azure
                 forceNew: true, // Force new connections for Azure
                 reconnection: false, // Disable automatic reconnection (we handle it manually)
-                pingTimeout: 120000, // 2 minutes for Azure
-                pingInterval: 30000, // 30 seconds for Azure
+                pingTimeout: 180000, // 3 minutes for Azure
+                pingInterval: 60000, // 60 seconds for Azure (reduce polling frequency)
                 autoConnect: true
             } : {
                 // Local development settings
@@ -521,6 +524,13 @@ class ProjectWebSocketClient {
         // Don't attempt if already connecting
         if (this.connectionState === 'connecting') {
             console.log('Already connecting, skipping polling-only attempt...');
+            return;
+        }
+        
+        // Check if we've attempted connection too recently
+        const now = Date.now();
+        if (now - this.lastConnectionAttempt < this.minConnectionInterval) {
+            console.log('Polling connection attempt too recent, skipping...');
             return;
         }
         
@@ -960,10 +970,8 @@ window.addEventListener('popstate', () => {
     }, 100);
 });
 
-// Handle page focus to ensure connection when returning to tab
-window.addEventListener('focus', () => {
-    ensureWebSocketConnection();
-});
+// Note: Window focus is handled by the WebSocket client's own focus handler
+// to avoid duplicate connection attempts
 
 // Initialize WebSocket for the current page
 function initializeWebSocketForCurrentPage() {
@@ -992,15 +1000,8 @@ window.addEventListener('beforeunload', () => {
     }
 });
 
-// Handle page visibility changes for better connection management
-document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) {
-        // Page became visible, ensure connection
-        setTimeout(() => {
-            ensureWebSocketConnection();
-        }, 100);
-    }
-});
+// Note: Page visibility is handled by the WebSocket client's own visibility handler
+// to avoid duplicate connection attempts
 
 // Expose global functions for manual connection management
 window.ensureWebSocketConnection = ensureWebSocketConnection;

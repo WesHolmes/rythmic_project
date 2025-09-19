@@ -118,7 +118,7 @@ class SharingService:
                 is_active=True
             )
         except Exception as e:
-            logger.error(f"Error creating SharingToken: {str(e)}")
+            print(f"Error creating SharingToken: {str(e)}")
             raise SharingServiceError("Failed to create sharing token")
         
         try:
@@ -126,7 +126,7 @@ class SharingService:
             db.session.commit()
         except Exception as e:
             db.session.rollback()
-            logger.error(f"Database error creating sharing token: {str(e)}")
+            print(f"Database error creating sharing token: {str(e)}")
             raise SharingServiceError("Failed to save sharing token to database")
         
         # Log the activity

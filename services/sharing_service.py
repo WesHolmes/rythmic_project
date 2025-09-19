@@ -138,7 +138,8 @@ class SharingService:
             raise SharingServiceError(f"Failed to create sharing token: {str(e)}")
         
         # Generate the complete sharing URL
-        sharing_url = url_for('accept_sharing_invitation', token=token, _external=True)
+        with current_app.app_context():
+            sharing_url = url_for('accept_sharing_invitation', token=token, _external=True)
         
         return sharing_url, token
     
@@ -280,15 +281,16 @@ class SharingService:
         role_description = role_descriptions.get(role, 'collaborate on the project')
         expires_text = f"in {expires_hours} hours" if expires_hours < 48 else f"in {expires_hours // 24} days"
         
-        return render_template('emails/sharing_invitation.html',
-                             app_name=self.app_name,
-                             project=project,
-                             inviter_name=inviter_name,
-                             role=role,
-                             role_description=role_description,
-                             sharing_url=sharing_url,
-                             personal_message=personal_message,
-                             expires_text=expires_text)
+        with current_app.app_context():
+            return render_template('emails/sharing_invitation.html',
+                                 app_name=self.app_name,
+                                 project=project,
+                                 inviter_name=inviter_name,
+                                 role=role,
+                                 role_description=role_description,
+                                 sharing_url=sharing_url,
+                                 personal_message=personal_message,
+                                 expires_text=expires_text)
 
     def _send_email(self, to_email: str, subject: str, html_content: str) -> None:
         """

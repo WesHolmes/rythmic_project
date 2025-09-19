@@ -698,6 +698,53 @@ class ProjectWebSocketHandler:
         self.active_connections = {}  # {user_id: {project_id: session_id}}
         self.project_rooms = {}       # {project_id: set(user_ids)}
     
+    def _cleanup_user_project_sessions(self, user_id, project_id):
+        """Clean up any existing sessions for a user/project combination"""
+        try:
+            # Remove from active_connections if exists
+            if user_id in self.active_connections and project_id in self.active_connections[user_id]:
+                old_session_id = self.active_connections[user_id][project_id]
+                del self.active_connections[user_id][project_id]
+                
+                # Clean up empty user connections
+                if not self.active_connections[user_id]:
+                    del self.active_connections[user_id]
+            
+            # Remove from project_rooms if exists
+            if project_id in self.project_rooms and user_id in self.project_rooms[project_id]:
+                self.project_rooms[project_id].discard(user_id)
+                
+                # Clean up empty project room
+                if not self.project_rooms[project_id]:
+                    del self.project_rooms[project_id]
+            
+            # Remove from database
+            ActiveSession.query.filter_by(
+                user_id=user_id, 
+                project_id=project_id
+            ).delete()
+            db.session.commit()
+            
+        except Exception as e:
+            print(f"Error cleaning up user project sessions: {e}")
+            db.session.rollback()
+    
+    def _cleanup_stale_user_sessions(self, user_id):
+        """Clean up all stale sessions for a user"""
+        try:
+            # Remove from active_connections
+            if user_id in self.active_connections:
+                for project_id in list(self.active_connections[user_id].keys()):
+                    self._cleanup_user_project_sessions(user_id, project_id)
+            
+            # Clean up any remaining database sessions for this user
+            ActiveSession.query.filter_by(user_id=user_id).delete()
+            db.session.commit()
+            
+        except Exception as e:
+            print(f"Error cleaning up stale user sessions: {e}")
+            db.session.rollback()
+    
     def connect(self, user_id, project_id, session_id):
         """Handle new WebSocket connection with authentication"""
         try:
@@ -705,6 +752,9 @@ class ProjectWebSocketHandler:
             project = Project.query.get(project_id)
             if not project or not project.is_accessible_by(user_id):
                 return False
+            
+            # Clean up any existing sessions for this user/project combination first
+            self._cleanup_user_project_sessions(user_id, project_id)
             
             # Initialize user connections if not exists
             if user_id not in self.active_connections:
@@ -718,23 +768,13 @@ class ProjectWebSocketHandler:
                 self.project_rooms[project_id] = set()
             self.project_rooms[project_id].add(user_id)
             
-            # Create or update active session in database
-            existing_session = ActiveSession.query.filter_by(
-                user_id=user_id, 
-                project_id=project_id
-            ).first()
-            
-            if existing_session:
-                existing_session.session_id = session_id
-                existing_session.last_activity = datetime.utcnow()
-            else:
-                new_session = ActiveSession(
-                    user_id=user_id,
-                    project_id=project_id,
-                    session_id=session_id
-                )
-                db.session.add(new_session)
-            
+            # Create new active session in database
+            new_session = ActiveSession(
+                user_id=user_id,
+                project_id=project_id,
+                session_id=session_id
+            )
+            db.session.add(new_session)
             db.session.commit()
             
             # Notify other users in the project about new connection
@@ -901,7 +941,10 @@ def handle_connect(auth):
             disconnect()
             return False
         
-        print(f"User {current_user.id} ({current_user.name}) connected")
+        # Clean up any stale sessions for this user
+        ws_handler._cleanup_stale_user_sessions(current_user.id)
+        
+        print(f"User {current_user.id} ({current_user.name}) connected with session {request.sid}")
         return True
     except Exception as e:
         print(f"Socket.IO connection error: {str(e)}")

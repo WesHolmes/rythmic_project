@@ -9,12 +9,17 @@ class ProjectWebSocketClient {
         this.currentProjectId = null;
         this.isConnected = false;
         this.reconnectAttempts = 0;
-        this.maxReconnectAttempts = 5;
-        this.reconnectDelay = 1000; // Start with 1 second
+        this.maxReconnectAttempts = 3; // Reduced from 5
+        this.reconnectDelay = 2000; // Increased from 1 second
         this.lastSyncTimestamp = null;
         this.connectionState = 'disconnected'; // disconnected, connecting, connected, error
         this.pageVisibilityHandler = null;
         this.focusHandler = null;
+        
+        // Debouncing for connection attempts
+        this.connectionDebounceTimer = null;
+        this.lastConnectionAttempt = 0;
+        this.minConnectionInterval = 3000; // Minimum 3 seconds between connection attempts
         
         // Event callbacks
         this.onConnected = null;
@@ -33,25 +38,64 @@ class ProjectWebSocketClient {
     }
     
     /**
-     * Set up page visibility and focus handlers for immediate reconnection
+     * Set up page visibility and focus handlers for reconnection
      */
     setupPageVisibilityHandlers() {
         // Handle page visibility changes (tab switching, minimizing)
         this.pageVisibilityHandler = () => {
             if (!document.hidden && this.shouldBeConnected()) {
-                this.ensureConnection();
+                // Debounce visibility change reconnections
+                this.debouncedEnsureConnection();
             }
         };
         
-        // Handle window focus (returning to the page)
+        // Handle window focus (returning to the page) - only if visibility change didn't already handle it
         this.focusHandler = () => {
-            if (this.shouldBeConnected()) {
-                this.ensureConnection();
+            if (this.shouldBeConnected() && !document.hidden) {
+                // Only trigger if visibility change didn't already handle it
+                setTimeout(() => {
+                    if (this.shouldBeConnected() && !document.hidden) {
+                        this.debouncedEnsureConnection();
+                    }
+                }, 100);
             }
         };
         
         document.addEventListener('visibilitychange', this.pageVisibilityHandler);
         window.addEventListener('focus', this.focusHandler);
+    }
+    
+    /**
+     * Clean up resources and disconnect
+     */
+    destroy() {
+        // Clear debounce timer
+        if (this.connectionDebounceTimer) {
+            clearTimeout(this.connectionDebounceTimer);
+            this.connectionDebounceTimer = null;
+        }
+        
+        // Remove event listeners
+        if (this.pageVisibilityHandler) {
+            document.removeEventListener('visibilitychange', this.pageVisibilityHandler);
+            this.pageVisibilityHandler = null;
+        }
+        
+        if (this.focusHandler) {
+            window.removeEventListener('focus', this.focusHandler);
+            this.focusHandler = null;
+        }
+        
+        // Disconnect socket
+        if (this.socket) {
+            this.socket.disconnect();
+            this.socket = null;
+        }
+        
+        // Reset state
+        this.isConnected = false;
+        this.connectionState = 'disconnected';
+        this.currentProjectId = null;
     }
     
     /**
@@ -64,6 +108,29 @@ class ProjectWebSocketClient {
     }
     
     /**
+     * Debounced version of ensureConnection to prevent rapid reconnection attempts
+     */
+    debouncedEnsureConnection() {
+        // Clear existing timer
+        if (this.connectionDebounceTimer) {
+            clearTimeout(this.connectionDebounceTimer);
+        }
+        
+        // Check if we've attempted connection too recently
+        const now = Date.now();
+        if (now - this.lastConnectionAttempt < this.minConnectionInterval) {
+            console.log('Connection attempt too recent, debouncing...');
+            this.connectionDebounceTimer = setTimeout(() => {
+                this.ensureConnection();
+            }, this.minConnectionInterval - (now - this.lastConnectionAttempt));
+            return;
+        }
+        
+        // Proceed with connection attempt
+        this.ensureConnection();
+    }
+    
+    /**
      * Ensure WebSocket connection is active when it should be
      */
     ensureConnection() {
@@ -72,12 +139,22 @@ class ProjectWebSocketClient {
             return;
         }
         
+        // Update last connection attempt time
+        this.lastConnectionAttempt = Date.now();
+        
         console.log(`Ensuring WebSocket connection - Current state: ${this.connectionState}, Connected: ${this.isWebSocketConnected()}`);
         
-        // If not connected or connection is stale, reconnect immediately
+        // Only reconnect if we're not already connecting or connected
+        if (this.connectionState === 'connecting') {
+            console.log('Already connecting, skipping...');
+            return;
+        }
+        
+        // If not connected or connection is stale, reconnect
         if (!this.isWebSocketConnected() || this.connectionState === 'error') {
-            console.log('WebSocket needs reconnection, forcing reconnect...');
+            console.log('WebSocket needs reconnection...');
             this.forceReconnect();
+            return;
         }
         
         // If we have a project ID but haven't joined, join it
@@ -94,13 +171,19 @@ class ProjectWebSocketClient {
     }
     
     /**
-     * Force immediate reconnection
+     * Force reconnection with proper state management
      */
     forceReconnect() {
+        // Don't force reconnect if already connecting
+        if (this.connectionState === 'connecting') {
+            console.log('Already connecting, skipping force reconnect...');
+            return;
+        }
+        
         console.log('Force reconnecting WebSocket...');
         this.connectionState = 'connecting';
         this.reconnectAttempts = 0; // Reset attempts for immediate reconnection
-        this.reconnectDelay = 1000; // Reset delay
+        this.reconnectDelay = 2000; // Reset delay
         
         // Show connecting status
         if (this.onDisconnected) {
@@ -111,10 +194,12 @@ class ProjectWebSocketClient {
             this.socket.disconnect();
         }
         
-        // Connect immediately
+        // Connect with a small delay to allow cleanup
         setTimeout(() => {
-            this.connect();
-        }, 100);
+            if (this.shouldBeConnected()) {
+                this.connect();
+            }
+        }, 500);
     }
     
     /**
@@ -151,15 +236,16 @@ class ProjectWebSocketClient {
                 transports: ['polling', 'websocket'], // Start with polling for Azure compatibility
                 upgrade: true,
                 rememberUpgrade: false, // Don't remember upgrade on Azure
-                timeout: 10000, // Longer timeout for Azure
-                forceNew: true, // Force new connection to avoid stale connections
+                timeout: 15000, // Longer timeout for Azure
+                forceNew: false, // Don't force new connections unless necessary
                 reconnection: true,
-                reconnectionAttempts: 5,
-                reconnectionDelay: 2000,
-                reconnectionDelayMax: 10000,
-                maxReconnectionAttempts: 5,
+                reconnectionAttempts: 3, // Reduced attempts
+                reconnectionDelay: 3000, // Longer initial delay
+                reconnectionDelayMax: 15000, // Longer max delay
+                maxReconnectionAttempts: 3,
                 pingTimeout: 60000,
-                pingInterval: 25000
+                pingInterval: 25000,
+                autoConnect: true
             });
             
             this.setupEventHandlers();
@@ -212,20 +298,24 @@ class ProjectWebSocketClient {
                 this.onDisconnected(reason);
             }
             
-            // Auto-reconnect for certain disconnect reasons, but be more aggressive
+            // Only reconnect for certain disconnect reasons and with longer delays
             if (reason === 'io server disconnect') {
-                // Server initiated disconnect, still try to reconnect after a short delay
+                // Server initiated disconnect, wait longer before reconnecting
                 setTimeout(() => {
                     if (this.shouldBeConnected()) {
                         this.attemptReconnect();
                     }
-                }, 2000);
+                }, 5000);
                 return;
             }
             
-            // For other disconnections, reconnect immediately if we should be connected
-            if (this.shouldBeConnected()) {
-                this.attemptReconnect();
+            // For other disconnections, wait before reconnecting
+            if (this.shouldBeConnected() && reason !== 'io client disconnect') {
+                setTimeout(() => {
+                    if (this.shouldBeConnected()) {
+                        this.attemptReconnect();
+                    }
+                }, 3000);
             }
         });
         
@@ -245,9 +335,14 @@ class ProjectWebSocketClient {
                         // Try with polling only for 400 errors
                         this.connectWithPollingOnly();
                     }
-                }, 5000);
+                }, 8000); // Longer delay for 400 errors
             } else if (this.shouldBeConnected()) {
-                this.attemptReconnect();
+                // Wait before attempting reconnection for other errors
+                setTimeout(() => {
+                    if (this.shouldBeConnected()) {
+                        this.attemptReconnect();
+                    }
+                }, 4000);
             }
         });
         
@@ -327,6 +422,12 @@ class ProjectWebSocketClient {
             return;
         }
         
+        // Don't reconnect if already connecting
+        if (this.connectionState === 'connecting') {
+            console.log('Already connecting, skipping reconnect attempt...');
+            return;
+        }
+        
         if (this.reconnectAttempts >= this.maxReconnectAttempts) {
             console.error('Max reconnection attempts reached');
             this.connectionState = 'error';
@@ -337,7 +438,7 @@ class ProjectWebSocketClient {
             // Reset attempts after a longer delay to allow for manual retry
             setTimeout(() => {
                 this.reconnectAttempts = 0;
-                this.reconnectDelay = 1000;
+                this.reconnectDelay = 2000;
             }, 60000); // Reset after 1 minute
             return;
         }
@@ -345,9 +446,11 @@ class ProjectWebSocketClient {
         this.reconnectAttempts++;
         this.connectionState = 'connecting';
         
+        console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts}) in ${this.reconnectDelay}ms...`);
+        
         setTimeout(() => {
-            if (this.shouldBeConnected()) { // Double-check before reconnecting
-                console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
+            if (this.shouldBeConnected() && this.connectionState === 'connecting') { // Double-check before reconnecting
+                console.log(`Executing reconnect attempt ${this.reconnectAttempts}...`);
                 if (this.socket) {
                     this.socket.connect();
                 } else {
@@ -356,14 +459,20 @@ class ProjectWebSocketClient {
             }
         }, this.reconnectDelay);
         
-        // Exponential backoff, but cap at 10 seconds for faster recovery
-        this.reconnectDelay = Math.min(this.reconnectDelay * 1.5, 10000);
+        // Exponential backoff, but cap at 15 seconds for better stability
+        this.reconnectDelay = Math.min(this.reconnectDelay * 1.5, 15000);
     }
     
     /**
      * Connect using polling only (for 400 error recovery)
      */
     connectWithPollingOnly() {
+        // Don't attempt if already connecting
+        if (this.connectionState === 'connecting') {
+            console.log('Already connecting, skipping polling-only attempt...');
+            return;
+        }
+        
         try {
             console.log('Attempting connection with polling only...');
             this.connectionState = 'connecting';
@@ -377,13 +486,14 @@ class ProjectWebSocketClient {
             this.socket = io({
                 transports: ['polling'], // Only polling
                 upgrade: false, // Disable upgrade to websocket
-                timeout: 15000, // Longer timeout
-                forceNew: true,
+                timeout: 20000, // Longer timeout
+                forceNew: false, // Don't force new connection
                 reconnection: true,
-                reconnectionAttempts: 3,
-                reconnectionDelay: 3000,
+                reconnectionAttempts: 2, // Reduced attempts for polling
+                reconnectionDelay: 5000, // Longer delay for polling
+                reconnectionDelayMax: 20000,
                 pingTimeout: 60000,
-                pingInterval: 25000
+                pingInterval: 30000 // Longer ping interval for polling
             });
             
             this.setupEventHandlers();

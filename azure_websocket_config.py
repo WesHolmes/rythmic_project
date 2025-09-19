@@ -63,21 +63,8 @@ def get_azure_websocket_config():
 
 def configure_azure_headers(app):
     """Configure Azure-specific headers for WebSocket support"""
-    
-    @app.after_request
-    def add_azure_headers(response):
-        if is_azure_app_service():
-            # Add headers for Azure App Service WebSocket support
-            response.headers['X-Content-Type-Options'] = 'nosniff'
-            response.headers['X-Frame-Options'] = 'DENY'
-            
-            # WebSocket upgrade headers
-            if 'socket.io' in str(response.get_data()):
-                response.headers['Connection'] = 'Upgrade'
-                response.headers['Upgrade'] = 'websocket'
-        
-        return response
-    
+    # Note: Headers are now handled in azure_security_config.py
+    # to avoid conflicts with multiple after_request handlers
     return app
 
 

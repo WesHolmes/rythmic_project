@@ -36,6 +36,17 @@ def configure_app_for_azure(app):
             # Referrer policy
             response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
             
+            # WebSocket headers for SocketIO (only for JSON responses to avoid static file issues)
+            if (hasattr(response, 'mimetype') and 
+                response.mimetype == 'application/json'):
+                try:
+                    if 'socket.io' in str(response.get_data()):
+                        response.headers['Connection'] = 'Upgrade'
+                        response.headers['Upgrade'] = 'websocket'
+                except RuntimeError:
+                    # Skip if response is in passthrough mode (static files)
+                    pass
+            
             return response
         
         logger.info("Azure security headers configured")

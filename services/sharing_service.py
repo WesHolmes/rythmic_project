@@ -237,64 +237,50 @@ class SharingService:
             email_error = str(e)
             logger.warning(f"Email delivery failed for {email}: {email_error}")
             # Don't raise the error - just log it and continue with link generation
-            
-            # Log successful email send
-            SharingActivityLog.log_activity(
-                project_id=project_id,
-                action='project_shared',
-                user_id=created_by,
-                details=f"Email invitation sent to {email} for role '{role}'",
-                ip_address=self._get_client_ip(),
-                user_agent=self._get_user_agent()
-            )
-            
-            # Create invitation notification
-            InvitationNotification.create_notification(
-                project_id=project_id,
-                sender_user_id=created_by,
-                notification_type='invitation_sent',
-                recipient_email=email,
-                sharing_token_id=sharing_token.id,
-                message=f"Invitation sent to {email} for role '{role}'"
-            )
-            
-            try:
-                db.session.commit()
-                logger.info(f"Email invitation sent successfully to {email} for project {project_id}")
-            except Exception as db_error:
-                db.session.rollback()
-                logger.error(f"Database error after sending email to {email}: {str(db_error)}")
-                raise SharingServiceError(f"Email sent but database update failed: {str(db_error)}")
-            
-            # Return success with email status
-            if email_sent:
-                message = f'Invitation sent successfully to {email}'
-            else:
-                message = f'Sharing link created for {email} (email delivery failed: {email_error})'
-            
-            return {
-                'success': True,
-                'message': message,
-                'sharing_url': sharing_url,
-                'token': token,
-                'expires_at': (datetime.utcnow() + timedelta(hours=expires_hours)).isoformat(),
-                'email_sent': email_sent,
-                'email_error': email_error
-            }
-            
-        except Exception as e:
-            # Log failed email send
-            SharingActivityLog.log_activity(
-                project_id=project_id,
-                action='email_failed',
-                user_id=created_by,
-                details=f"Failed to send email invitation to {email}: {str(e)}",
-                ip_address=self._get_client_ip(),
-                user_agent=self._get_user_agent()
-            )
-            
+        
+        # Log the activity (whether email succeeded or failed)
+        SharingActivityLog.log_activity(
+            project_id=project_id,
+            action='project_shared',
+            user_id=created_by,
+            details=f"Email invitation sent to {email} for role '{role}'",
+            ip_address=self._get_client_ip(),
+            user_agent=self._get_user_agent()
+        )
+        
+        # Create invitation notification
+        InvitationNotification.create_notification(
+            project_id=project_id,
+            sender_user_id=created_by,
+            notification_type='invitation_sent',
+            recipient_email=email,
+            sharing_token_id=sharing_token.id,
+            message=f"Invitation sent to {email} for role '{role}'"
+        )
+        
+        try:
             db.session.commit()
-            raise EmailDeliveryError(f"Failed to send email invitation: {str(e)}")
+            logger.info(f"Email invitation sent successfully to {email} for project {project_id}")
+        except Exception as db_error:
+            db.session.rollback()
+            logger.error(f"Database error after sending email to {email}: {str(db_error)}")
+            raise SharingServiceError(f"Email sent but database update failed: {str(db_error)}")
+        
+        # Return success with email status
+        if email_sent:
+            message = f'Invitation sent successfully to {email}'
+        else:
+            message = f'Sharing link created for {email} (email delivery failed: {email_error})'
+        
+        return {
+            'success': True,
+            'message': message,
+            'sharing_url': sharing_url,
+            'token': token,
+            'expires_at': (datetime.utcnow() + timedelta(hours=expires_hours)).isoformat(),
+            'email_sent': email_sent,
+            'email_error': email_error
+        }
 
     def _generate_email_template(self, project, inviter_name: str, role: str,
                                sharing_url: str, personal_message: str = "",
@@ -502,8 +488,11 @@ class SharingService:
             return {
                 'success': True,
                 'message': f'You are already a collaborator on project "{project.name}"',
-                'project_id': project.id,
-                'role': existing_collaborator.role
+                'project': {
+                    'id': project.id,
+                    'name': project.name,
+                    'role': existing_collaborator.role
+                }
             }
         
         # Check if user is the project owner
@@ -511,8 +500,11 @@ class SharingService:
             return {
                 'success': True,
                 'message': f'You are the owner of project "{project.name}"',
-                'project_id': project.id,
-                'role': 'owner'
+                'project': {
+                    'id': project.id,
+                    'name': project.name,
+                    'role': 'owner'
+                }
             }
         
         try:
@@ -563,8 +555,12 @@ class SharingService:
             return {
                 'success': True,
                 'message': f'Successfully joined project "{project.name}" as {sharing_token.role}',
-                'project_id': project.id,
-                'role': sharing_token.role
+                'project': {
+                    'id': project.id,
+                    'name': project.name,
+                    'role': sharing_token.role
+                },
+                'collaborator_id': collaborator.id
             }
             
         except Exception as e:

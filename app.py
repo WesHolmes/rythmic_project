@@ -765,6 +765,17 @@ class ProjectWebSocketHandler:
             print(f"Error cleaning up stale user sessions: {e}")
             db.session.rollback()
     
+    def _safe_get_socket(self, sid):
+        """Safely get socket by session ID with error handling"""
+        try:
+            return socketio.server.eio._get_socket(sid)
+        except KeyError as e:
+            print(f"Socket session {sid} not found: {e}")
+            return None
+        except Exception as e:
+            print(f"Error getting socket {sid}: {e}")
+            return None
+    
     def connect(self, user_id, project_id, session_id):
         """Handle new WebSocket connection with authentication"""
         try:
@@ -961,11 +972,11 @@ def handle_connect(auth):
             disconnect()
             return False
         
-        # Only clean up stale sessions if there are too many (more than 5)
+        # Clean up any existing sessions for this user first
         if current_user.id in ws_handler.active_connections:
             total_sessions = sum(len(projects) for projects in ws_handler.active_connections[current_user.id].values())
-            if total_sessions > 5:
-                print(f"User {current_user.id} has {total_sessions} sessions, cleaning up stale ones")
+            if total_sessions > 0:
+                print(f"User {current_user.id} has {total_sessions} existing sessions, cleaning up")
                 ws_handler._cleanup_stale_user_sessions(current_user.id)
         
         print(f"User {current_user.id} ({current_user.name}) connected with session {request.sid}")
@@ -1233,10 +1244,10 @@ def login():
                     sharing_service = SharingService()
                     result = sharing_service.process_sharing_token(token, user.id)
                     flash(result['message'], 'success')
-                    return redirect(url_for('projects'))
+                    return redirect(url_for('view_project', id=result['project']['id']))
                 except Exception as e:
                     flash(f'Error processing invitation: {str(e)}', 'error')
-                    return redirect(url_for('projects'))
+                    return redirect(url_for('view_project', id=result['project']['id']))
             
             # Check for next parameter (from invitation redirect)
             next_page = request.args.get('next')
@@ -1370,10 +1381,10 @@ def authorize_google():
                     sharing_service = SharingService()
                     result = sharing_service.process_sharing_token(token, user.id)
                     flash(result['message'], 'success')
-                    return redirect(url_for('projects'))
+                    return redirect(url_for('view_project', id=result['project']['id']))
                 except Exception as e:
                     flash(f'Error processing invitation: {str(e)}', 'error')
-                    return redirect(url_for('projects'))
+                    return redirect(url_for('view_project', id=result['project']['id']))
             
             return redirect(url_for('index'))
         else:
@@ -1434,10 +1445,10 @@ def authorize_github():
                     sharing_service = SharingService()
                     result = sharing_service.process_sharing_token(token, user.id)
                     flash(result['message'], 'success')
-                    return redirect(url_for('projects'))
+                    return redirect(url_for('view_project', id=result['project']['id']))
                 except Exception as e:
                     flash(f'Error processing invitation: {str(e)}', 'error')
-                    return redirect(url_for('projects'))
+                    return redirect(url_for('view_project', id=result['project']['id']))
             
             return redirect(url_for('index'))
         else:

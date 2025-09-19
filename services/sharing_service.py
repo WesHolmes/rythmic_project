@@ -10,11 +10,8 @@ This module provides secure sharing functionality for projects including:
 
 import os
 import secrets
-import smtplib
 import logging
 from datetime import datetime, timedelta
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from typing import Optional, Dict, Any, Tuple
 from flask import current_app, url_for, request, render_template
 
@@ -45,7 +42,8 @@ class SharingService:
     """
     
     def __init__(self):
-        # Email configuration priority: SendGrid > Azure Communication Services > SMTP
+        # Email configuration: SendGrid > Azure Communication Services
+        # No SMTP fallback - Azure account handles email delivery
         self.sendgrid_api_key = os.environ.get('SENDGRID_API_KEY')
         self.use_sendgrid = self.sendgrid_api_key is not None
         
@@ -61,18 +59,6 @@ class SharingService:
             self.azure_comm_connection_string = os.environ.get('AZURE_COMMUNICATION_CONNECTION_STRING')
             # Use FROM_EMAIL instead of AZURE_COMMUNICATION_SENDER_EMAIL
             self.azure_comm_sender_email = self.from_email
-        else:
-            # Fallback to SMTP only for local development
-            # Azure deployments should use SendGrid or Azure Communication Services
-            if not self.is_azure:
-                self.smtp_server = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
-                self.smtp_port = int(os.environ.get('SMTP_PORT', '587'))
-                self.smtp_username = os.environ.get('SMTP_USERNAME')
-                self.smtp_password = os.environ.get('SMTP_PASSWORD')
-            else:
-                # For Azure, disable SMTP fallback since account should handle email sending
-                self.smtp_username = None
-                self.smtp_password = None
         
         self.app_name = os.environ.get('APP_NAME', 'Rhythmic Project Manager')
         
@@ -81,8 +67,8 @@ class SharingService:
         
         # Log email configuration status for debugging
         if self.is_azure:
-            logger.info(f"Azure email configuration - SendGrid: {self.use_sendgrid}, Azure Comm: {self.use_azure_communication}, SMTP: {bool(self.smtp_username and self.smtp_password)}")
-            if not any([self.use_sendgrid, self.use_azure_communication, (self.smtp_username and self.smtp_password)]):
+            logger.info(f"Azure email configuration - SendGrid: {self.use_sendgrid}, Azure Comm: {self.use_azure_communication}")
+            if not any([self.use_sendgrid, self.use_azure_communication]):
                 logger.warning("No email service configured for Azure deployment. Email sharing will create links but not send emails.")
     
     def generate_sharing_link(self, project_id: int, role: str = 'viewer', 
@@ -340,7 +326,7 @@ class SharingService:
 
     def _send_email(self, to_email: str, subject: str, html_content: str) -> None:
         """
-        Send an email using SendGrid, Azure Communication Services, or SMTP fallback.
+        Send an email using SendGrid or Azure Communication Services.
         
         Args:
             to_email: Recipient email address
@@ -355,7 +341,7 @@ class SharingService:
         elif self.use_azure_communication:
             self._send_email_azure(to_email, subject, html_content)
         else:
-            self._send_email_smtp(to_email, subject, html_content)
+            raise EmailDeliveryError("No email service configured. Please configure SendGrid or Azure Communication Services.")
     
     def _send_email_sendgrid(self, to_email: str, subject: str, html_content: str) -> None:
         """
@@ -439,45 +425,10 @@ class SharingService:
                 raise EmailDeliveryError("Failed to send email via Azure Communication Services")
                 
         except ImportError:
-            # Azure Communication Services not available, fall back to SMTP
-            self._send_email_smtp(to_email, subject, html_content)
+            raise EmailDeliveryError("Azure Communication Services SDK not installed. Run: pip install azure-communication-email")
         except Exception as e:
             raise EmailDeliveryError(f"Failed to send email via Azure Communication Services: {str(e)}")
     
-    def _send_email_smtp(self, to_email: str, subject: str, html_content: str) -> None:
-        """
-        Send email using SMTP (fallback method).
-        
-        Args:
-            to_email: Recipient email address
-            subject: Email subject
-            html_content: HTML email content
-            
-        Raises:
-            EmailDeliveryError: If email delivery fails
-        """
-        if not self.smtp_username or not self.smtp_password:
-            raise EmailDeliveryError("SMTP credentials not configured")
-        
-        try:
-            # Create message
-            msg = MIMEMultipart('alternative')
-            msg['Subject'] = subject
-            msg['From'] = self.from_email
-            msg['To'] = to_email
-            
-            # Add HTML content
-            html_part = MIMEText(html_content, 'html')
-            msg.attach(html_part)
-            
-            # Send email
-            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
-                server.starttls()
-                server.login(self.smtp_username, self.smtp_password)
-                server.send_message(msg)
-                
-        except Exception as e:
-            raise EmailDeliveryError(f"Failed to send email via SMTP: {str(e)}")
 
     def _get_client_ip(self) -> Optional[str]:
         """Get client IP address from request context."""

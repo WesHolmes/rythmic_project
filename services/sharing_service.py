@@ -120,14 +120,18 @@ class SharingService:
         db.session.add(sharing_token)
         
         # Log the activity
-        SharingActivityLog.log_activity(
-            project_id=project_id,
-            action='token_generated',
-            user_id=created_by,
-            details=f"Sharing link generated for role '{role}', expires in {expires_hours} hours",
-            ip_address=self._get_client_ip(),
-            user_agent=self._get_user_agent()
-        )
+        try:
+            SharingActivityLog.log_activity(
+                project_id=project_id,
+                action='token_generated',
+                user_id=created_by,
+                details=f"Sharing link generated for role '{role}', expires in {expires_hours} hours",
+                ip_address=self._get_client_ip(),
+                user_agent=self._get_user_agent()
+            )
+        except Exception as log_error:
+            logger.warning(f"Failed to log activity for project {project_id}: {str(log_error)}")
+            # Continue without logging if activity logging fails
         
         try:
             db.session.commit()

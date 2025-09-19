@@ -9,8 +9,8 @@ class ProjectWebSocketClient {
         this.currentProjectId = null;
         this.isConnected = false;
         this.reconnectAttempts = 0;
-        this.maxReconnectAttempts = 3; // Reduced from 5
-        this.reconnectDelay = 2000; // Increased from 1 second
+        this.maxReconnectAttempts = 2; // Further reduced
+        this.reconnectDelay = 5000; // Much longer initial delay
         this.lastSyncTimestamp = null;
         this.connectionState = 'disconnected'; // disconnected, connecting, connected, error
         this.pageVisibilityHandler = null;
@@ -19,7 +19,7 @@ class ProjectWebSocketClient {
         // Debouncing for connection attempts
         this.connectionDebounceTimer = null;
         this.lastConnectionAttempt = 0;
-        this.minConnectionInterval = 3000; // Minimum 3 seconds between connection attempts
+        this.minConnectionInterval = 10000; // Minimum 10 seconds between connection attempts
         
         // Event callbacks
         this.onConnected = null;
@@ -298,24 +298,24 @@ class ProjectWebSocketClient {
                 this.onDisconnected(reason);
             }
             
-            // Only reconnect for certain disconnect reasons and with longer delays
+            // Only reconnect for certain disconnect reasons and with much longer delays
             if (reason === 'io server disconnect') {
-                // Server initiated disconnect, wait longer before reconnecting
+                // Server initiated disconnect, wait much longer before reconnecting
                 setTimeout(() => {
                     if (this.shouldBeConnected()) {
                         this.attemptReconnect();
                     }
-                }, 5000);
+                }, 15000); // 15 seconds
                 return;
             }
             
-            // For other disconnections, wait before reconnecting
+            // For other disconnections, wait much longer before reconnecting
             if (this.shouldBeConnected() && reason !== 'io client disconnect') {
                 setTimeout(() => {
                     if (this.shouldBeConnected()) {
                         this.attemptReconnect();
                     }
-                }, 3000);
+                }, 10000); // 10 seconds
             }
         });
         
@@ -327,22 +327,22 @@ class ProjectWebSocketClient {
                 this.onError('connection_error', error.message);
             }
             
-            // For 400 errors, wait longer before retrying and try different transport
+            // For 400 errors, wait much longer before retrying and try different transport
             if (error.message && (error.message.includes('400') || error.message.includes('Bad Request'))) {
-                console.log('Received 400 error, waiting longer before retry...');
+                console.log('Received 400 error, waiting much longer before retry...');
                 setTimeout(() => {
                     if (this.shouldBeConnected()) {
                         // Try with polling only for 400 errors
                         this.connectWithPollingOnly();
                     }
-                }, 8000); // Longer delay for 400 errors
+                }, 20000); // Much longer delay for 400 errors
             } else if (this.shouldBeConnected()) {
-                // Wait before attempting reconnection for other errors
+                // Wait much longer before attempting reconnection for other errors
                 setTimeout(() => {
                     if (this.shouldBeConnected()) {
                         this.attemptReconnect();
                     }
-                }, 4000);
+                }, 15000); // Much longer delay
             }
         });
         
@@ -435,11 +435,11 @@ class ProjectWebSocketClient {
                 this.onError('max_reconnect_attempts', 'Failed to reconnect after maximum attempts');
             }
             
-            // Reset attempts after a longer delay to allow for manual retry
+            // Reset attempts after a much longer delay to allow for manual retry
             setTimeout(() => {
                 this.reconnectAttempts = 0;
-                this.reconnectDelay = 2000;
-            }, 60000); // Reset after 1 minute
+                this.reconnectDelay = 5000;
+            }, 300000); // Reset after 5 minutes
             return;
         }
         
@@ -459,8 +459,8 @@ class ProjectWebSocketClient {
             }
         }, this.reconnectDelay);
         
-        // Exponential backoff, but cap at 15 seconds for better stability
-        this.reconnectDelay = Math.min(this.reconnectDelay * 1.5, 15000);
+        // Exponential backoff, but cap at 60 seconds for much better stability
+        this.reconnectDelay = Math.min(this.reconnectDelay * 1.5, 60000);
     }
     
     /**

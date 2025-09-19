@@ -941,8 +941,12 @@ def handle_connect(auth):
             disconnect()
             return False
         
-        # Clean up any stale sessions for this user
-        ws_handler._cleanup_stale_user_sessions(current_user.id)
+        # Only clean up stale sessions if there are too many (more than 5)
+        if current_user.id in ws_handler.active_connections:
+            total_sessions = sum(len(projects) for projects in ws_handler.active_connections[current_user.id].values())
+            if total_sessions > 5:
+                print(f"User {current_user.id} has {total_sessions} sessions, cleaning up stale ones")
+                ws_handler._cleanup_stale_user_sessions(current_user.id)
         
         print(f"User {current_user.id} ({current_user.name}) connected with session {request.sid}")
         return True

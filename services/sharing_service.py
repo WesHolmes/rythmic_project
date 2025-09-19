@@ -51,24 +51,39 @@ class SharingService:
         
         self.use_azure_communication = os.environ.get('AZURE_COMMUNICATION_CONNECTION_STRING') is not None
         
+        # Always use FROM_EMAIL as the primary sender email
+        self.from_email = os.environ.get('FROM_EMAIL', 'noreply@rhythmic.app')
+        
         if self.use_sendgrid:
-            self.from_email = os.environ.get('FROM_EMAIL', 'noreply@yourapp.com')
+            # SendGrid will use FROM_EMAIL
+            pass
         elif self.use_azure_communication:
             self.azure_comm_connection_string = os.environ.get('AZURE_COMMUNICATION_CONNECTION_STRING')
-            self.azure_comm_sender_email = os.environ.get('AZURE_COMMUNICATION_SENDER_EMAIL')
-            self.from_email = self.azure_comm_sender_email
+            # Use FROM_EMAIL instead of AZURE_COMMUNICATION_SENDER_EMAIL
+            self.azure_comm_sender_email = self.from_email
         else:
-            # Fallback to SMTP (for local development or non-Azure deployments)
-            self.smtp_server = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
-            self.smtp_port = int(os.environ.get('SMTP_PORT', '587'))
-            self.smtp_username = os.environ.get('SMTP_USERNAME')
-            self.smtp_password = os.environ.get('SMTP_PASSWORD')
-            self.from_email = os.environ.get('FROM_EMAIL', self.smtp_username)
+            # Fallback to SMTP only for local development
+            # Azure deployments should use SendGrid or Azure Communication Services
+            if not self.is_azure:
+                self.smtp_server = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
+                self.smtp_port = int(os.environ.get('SMTP_PORT', '587'))
+                self.smtp_username = os.environ.get('SMTP_USERNAME')
+                self.smtp_password = os.environ.get('SMTP_PASSWORD')
+            else:
+                # For Azure, disable SMTP fallback since account should handle email sending
+                self.smtp_username = None
+                self.smtp_password = None
         
         self.app_name = os.environ.get('APP_NAME', 'Rhythmic Project Manager')
         
         # Azure App Service detection
         self.is_azure = self._is_azure_environment()
+        
+        # Log email configuration status for debugging
+        if self.is_azure:
+            logger.info(f"Azure email configuration - SendGrid: {self.use_sendgrid}, Azure Comm: {self.use_azure_communication}, SMTP: {bool(self.smtp_username and self.smtp_password)}")
+            if not any([self.use_sendgrid, self.use_azure_communication, (self.smtp_username and self.smtp_password)]):
+                logger.warning("No email service configured for Azure deployment. Email sharing will create links but not send emails.")
     
     def generate_sharing_link(self, project_id: int, role: str = 'viewer', 
                             expires_hours: int = 24, max_uses: int = 1,
@@ -211,13 +226,22 @@ class SharingService:
             expires_hours=expires_hours
         )
         
-        # Send email
+        # Send email using the configured from_email
+        email_sent = False
+        email_error = None
+        
         try:
             self._send_email(
                 to_email=email,
                 subject=subject,
                 html_content=html_content
             )
+            email_sent = True
+        except EmailDeliveryError as e:
+            # If email fails, still create the sharing link but log the error
+            email_error = str(e)
+            logger.warning(f"Email delivery failed for {email}: {email_error}")
+            # Don't raise the error - just log it and continue with link generation
             
             # Log successful email send
             SharingActivityLog.log_activity(
@@ -247,12 +271,20 @@ class SharingService:
                 logger.error(f"Database error after sending email to {email}: {str(db_error)}")
                 raise SharingServiceError(f"Email sent but database update failed: {str(db_error)}")
             
+            # Return success with email status
+            if email_sent:
+                message = f'Invitation sent successfully to {email}'
+            else:
+                message = f'Sharing link created for {email} (email delivery failed: {email_error})'
+            
             return {
                 'success': True,
-                'message': f'Invitation sent successfully to {email}',
+                'message': message,
                 'sharing_url': sharing_url,
                 'token': token,
-                'expires_at': (datetime.utcnow() + timedelta(hours=expires_hours)).isoformat()
+                'expires_at': (datetime.utcnow() + timedelta(hours=expires_hours)).isoformat(),
+                'email_sent': email_sent,
+                'email_error': email_error
             }
             
         except Exception as e:
@@ -390,7 +422,7 @@ class SharingService:
             
             # Create email message
             email_message = EmailMessage(
-                sender=EmailAddress(email=self.azure_comm_sender_email, display_name=self.app_name),
+                sender=EmailAddress(email=self.from_email, display_name=self.app_name),
                 content=EmailContent(
                     subject=subject,
                     html=html_content

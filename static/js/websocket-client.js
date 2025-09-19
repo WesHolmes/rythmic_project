@@ -65,18 +65,23 @@ class ProjectWebSocketClient {
      * Set up page visibility and focus handlers for reconnection
      */
     setupPageVisibilityHandlers() {
-        // Handle page visibility changes (tab switching, minimizing) - MUCH more conservative
+        // Handle page visibility changes (tab switching, minimizing) - VERY conservative
         this.pageVisibilityHandler = () => {
-            if (!document.hidden && this.shouldBeConnected() && this.connectionState === 'disconnected') {
-                // Only reconnect if we're actually disconnected, not just tab switching
+            // Only reconnect if we're actually disconnected AND it's been more than 30 seconds
+            const timeSinceLastConnection = Date.now() - this.lastConnectionAttempt;
+            if (!document.hidden && this.shouldBeConnected() && 
+                this.connectionState === 'disconnected' && timeSinceLastConnection > 30000) {
                 console.log('Page became visible, checking if reconnection needed...');
                 this.debouncedEnsureConnection();
             }
         };
         
-        // Handle window focus (returning to the page) - MUCH more conservative
+        // Handle window focus (returning to the page) - VERY conservative
         this.focusHandler = () => {
-            if (this.shouldBeConnected() && !document.hidden && this.connectionState === 'disconnected') {
+            // Only reconnect if we're actually disconnected AND it's been more than 30 seconds
+            const timeSinceLastConnection = Date.now() - this.lastConnectionAttempt;
+            if (this.shouldBeConnected() && !document.hidden && 
+                this.connectionState === 'disconnected' && timeSinceLastConnection > 30000) {
                 // Only reconnect if we're actually disconnected, not just clicking
                 console.log('Window focused, checking if reconnection needed...');
                 setTimeout(() => {

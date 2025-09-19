@@ -18,7 +18,8 @@ class AzureCommunicationService:
     
     def __init__(self, connection_string: str = None):
         self.connection_string = connection_string or os.environ.get('AZURE_COMMUNICATION_CONNECTION_STRING')
-        self.sender_email = os.environ.get('AZURE_COMMUNICATION_SENDER_EMAIL')
+        # Use FROM_EMAIL as the primary sender email, fallback to AZURE_COMMUNICATION_SENDER_EMAIL
+        self.sender_email = os.environ.get('FROM_EMAIL') or os.environ.get('AZURE_COMMUNICATION_SENDER_EMAIL')
         self.enabled = bool(self.connection_string and self.sender_email)
         self.email_client = None
         

@@ -54,13 +54,12 @@ def get_azure_sql_url() -> Optional[str]:
         if database_url.startswith('mssql://'):
             return database_url
         elif database_url.startswith('sqlserver://'):
-            return database_url.replace('sqlserver://', 'mssql+pymssql://', 1)
-        elif 'mssql+pymssql://' in database_url:
-            # Keep pymssql URLs as-is for Azure compatibility
-            return database_url
+            return database_url.replace('sqlserver://', 'mssql+pyodbc://', 1)
         elif 'mssql+pyodbc://' in database_url:
-            # Convert pyodbc URLs to pymssql for better Azure App Service Linux compatibility
-            return database_url.replace('mssql+pyodbc://', 'mssql+pymssql://', 1)
+            return database_url
+        elif 'mssql+pymssql://' in database_url:
+            # Convert pymssql URLs to pyodbc for better Azure compatibility
+            return database_url.replace('mssql+pymssql://', 'mssql+pyodbc://', 1)
         return database_url
     
     # Build from individual components for Azure SQL
@@ -70,9 +69,9 @@ def get_azure_sql_url() -> Optional[str]:
     database = os.environ.get('AZURE_SQL_DATABASE')
     
     if all([server, user, password, database]):
-        # Generate Azure SQL connection URL with pymssql (no ODBC drivers needed)
-        logger.info("Using Azure SQL Database with pymssql driver")
-        return f"mssql+pymssql://{user}:{password}@{server}:1433/{database}?charset=utf8"
+        # Generate Azure SQL connection URL with pyodbc
+        logger.info("Using Azure SQL Database with pyodbc driver")
+        return f"mssql+pyodbc://{user}:{password}@{server}:1433/{database}?driver=ODBC+Driver+18+for+SQL+Server"
     
     return None
 
@@ -189,12 +188,12 @@ def get_database_url() -> str:
     Returns:
         str: Database connection URL
     """
-    # In Azure environment, prioritize Azure SQL Database with pymssql (no ODBC drivers needed)
+    # In Azure environment, prioritize Azure SQL Database
     if is_azure_environment():
-        # Try Azure SQL Database first (now works with pymssql on Python 3.12)
+        # Try Azure SQL Database first
         azure_sql_url = get_azure_sql_url()
         if azure_sql_url:
-            logger.info("Azure environment detected - using Azure SQL Database with pymssql")
+            logger.info("Azure environment detected - using Azure SQL Database")
             return azure_sql_url
         
         # Fallback to PostgreSQL if Azure SQL Database not available
@@ -205,7 +204,17 @@ def get_database_url() -> str:
         else:
             raise RuntimeError("No database configured for Azure environment. Please set DATABASE_URL or individual Azure SQL/PostgreSQL environment variables.")
     
-    # For local development, try Azure SQL Database first
+    # For local development, try PostgreSQL first
+    postgresql_url = get_postgresql_url()
+    if postgresql_url:
+        is_valid, error = validate_connection(postgresql_url)
+        if is_valid:
+            logger.info("Using PostgreSQL database")
+            return postgresql_url
+        else:
+            logger.warning(f"PostgreSQL connection failed: {error}")
+    
+    # Try Azure SQL Database as fallback (may not work due to driver issues)
     try:
         azure_sql_url = get_azure_sql_url()
         if azure_sql_url:
@@ -216,19 +225,9 @@ def get_database_url() -> str:
             else:
                 logger.warning(f"Azure SQL Database connection failed: {error}")
     except ImportError as e:
-        logger.warning(f"pyodbc not available, skipping Azure SQL Database: {e}")
+        logger.warning(f"Database drivers not available, skipping Azure SQL Database: {e}")
     except Exception as e:
         logger.warning(f"Error with Azure SQL Database configuration: {e}")
-    
-    # Try PostgreSQL as fallback
-    postgresql_url = get_postgresql_url()
-    if postgresql_url:
-        is_valid, error = validate_connection(postgresql_url)
-        if is_valid:
-            logger.info("Using PostgreSQL database")
-            return postgresql_url
-        else:
-            logger.warning(f"PostgreSQL connection failed: {error}")
     
     # Fallback to SQLite for local development only
     sqlite_url = get_sqlite_url()

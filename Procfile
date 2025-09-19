@@ -1,1 +1,1 @@
-web: gunicorn --bind=0.0.0.0:$PORT --timeout 600 --worker-class gevent --workers 1 wsgi:application
+web: gunicorn --bind=0.0.0.0:8000 --timeout 600 --worker-class gevent --workers 1 wsgi:application

@@ -1,5 +1,5 @@
 {
-  "DATABASE_URL": "REQUIRED: Azure SQL Database connection string",
+  "DATABASE_URL": "REQUIRED: PostgreSQL connection string (e.g., postgresql://user:password@host:port/database)",
   "AZURE_SIGNALR_CONNECTION_STRING": "OPTIONAL: Azure SignalR Service connection string for WebSocket scaling",
   "AZURE_COMMUNICATION_CONNECTION_STRING": "OPTIONAL: Azure Communication Services connection string for email delivery",
   "AZURE_REDIS_CONNECTION_STRING": "OPTIONAL: Azure Redis Cache connection string for session management",

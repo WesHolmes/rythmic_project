@@ -1,3 +1,4 @@
+# Core Flask application requirements
 Flask==3.0.3
 Flask-SQLAlchemy==3.1.1
 Flask-Login==0.6.3
@@ -20,17 +21,16 @@ bleach==6.1.0
 gevent==23.9.1
 gevent-websocket==0.10.1
 
-# Database drivers for cross-platform compatibility
+# Database drivers for Azure SQL Database compatibility
 pyodbc==5.1.0
-pymssql>=2.3.7
-# PostgreSQL driver for Azure compatibility
-psycopg2-binary>=2.9.0
+# PostgreSQL driver as fallback
+psycopg2-binary==2.9.9
 
 # Azure services for production deployment
-azure-messaging-webpubsubservice>=1.0.0
-azure-servicebus>=7.0.0
-azure-identity>=1.12.0
-azure-keyvault-secrets>=4.6.0
-redis>=4.5.0
-Flask-Session>=0.5.0
-applicationinsights>=0.11.10
+azure-messaging-webpubsubservice==1.0.0
+azure-servicebus==7.11.4
+azure-identity==1.12.0
+azure-keyvault-secrets==4.6.0
+redis==4.5.4
+Flask-Session==0.5.0
+applicationinsights==0.11.10

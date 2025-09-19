@@ -18,6 +18,19 @@ ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev
 
 echo "ODBC drivers installed successfully"
 
+# Set environment variables for Azure
+export PYTHONPATH="${PYTHONPATH}:/home/site/wwwroot"
+export WEBSITE_SITE_NAME="${WEBSITE_SITE_NAME:-rhythmic}"
+
+# Create necessary directories
+mkdir -p /tmp/rhythmic
+mkdir -p /home/site/wwwroot/instance
+
+# Set up logging
+export PYTHONUNBUFFERED=1
+
+echo "Environment configured successfully"
+
 # Start the application
-echo "Starting Gunicorn server..."
-exec gunicorn --bind=0.0.0.0:$PORT --timeout 600 --worker-class gevent --workers 1 wsgi:application
+echo "Starting Gunicorn server on port 8000..."
+exec gunicorn --bind=0.0.0.0:8000 --timeout 600 --worker-class gevent --workers 1 wsgi:application

@@ -67,6 +67,15 @@ class SharingService:
         
         # Log email configuration status for debugging
         if self.is_azure:
+            # Debug logging to see what environment variables are available
+            sendgrid_key_exists = bool(os.environ.get('SENDGRID_API_KEY'))
+            from_email_exists = bool(os.environ.get('FROM_EMAIL'))
+            azure_comm_exists = bool(os.environ.get('AZURE_COMMUNICATION_CONNECTION_STRING'))
+            
+            logger.info(f"Environment variables debug - SENDGRID_API_KEY exists: {sendgrid_key_exists}, FROM_EMAIL exists: {from_email_exists}, AZURE_COMMUNICATION_CONNECTION_STRING exists: {azure_comm_exists}")
+            logger.info(f"FROM_EMAIL value: {os.environ.get('FROM_EMAIL', 'NOT_SET')}")
+            logger.info(f"SENDGRID_API_KEY value: {'SET' if os.environ.get('SENDGRID_API_KEY') else 'NOT_SET'}")
+            
             logger.info(f"Azure email configuration - SendGrid: {self.use_sendgrid}, Azure Comm: {self.use_azure_communication}")
             if not any([self.use_sendgrid, self.use_azure_communication]):
                 logger.warning("No email service configured for Azure deployment. Email sharing will create links but not send emails.")

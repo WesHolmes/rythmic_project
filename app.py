@@ -72,6 +72,23 @@ def debug_static():
     
     return jsonify(debug_info)
 
+@app.route('/debug-env')
+def debug_env():
+    """Debug route to check environment variables"""
+    import os
+    
+    env_vars = {
+        'SENDGRID_API_KEY': 'SET' if os.environ.get('SENDGRID_API_KEY') else 'NOT_SET',
+        'FROM_EMAIL': os.environ.get('FROM_EMAIL', 'NOT_SET'),
+        'AZURE_COMMUNICATION_CONNECTION_STRING': 'SET' if os.environ.get('AZURE_COMMUNICATION_CONNECTION_STRING') else 'NOT_SET',
+        'SECRET_KEY': 'SET' if os.environ.get('SECRET_KEY') else 'NOT_SET',
+        'DATABASE_URL': 'SET' if os.environ.get('DATABASE_URL') else 'NOT_SET',
+        'WEBSITE_SITE_NAME': os.environ.get('WEBSITE_SITE_NAME', 'NOT_SET'),
+        'FLASK_ENV': os.environ.get('FLASK_ENV', 'NOT_SET')
+    }
+    
+    return jsonify(env_vars)
+
 @app.route('/test-static-files')
 def test_static_files():
     """Simple test page to verify static files are loading"""

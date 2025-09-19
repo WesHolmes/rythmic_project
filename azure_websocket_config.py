@@ -23,18 +23,18 @@ def get_azure_websocket_config():
             'transports': ['polling', 'websocket'],
             
             # Longer timeouts for Azure's proxy layer
-            'ping_timeout': 60,
-            'ping_interval': 25,
+            'ping_timeout': 120,  # Increased for Azure stability
+            'ping_interval': 30,  # Increased for Azure stability
             
             # Connection settings
             'upgrade': True,
             'rememberUpgrade': False,  # Don't cache upgrade on Azure
             
-            # Reconnection settings
+            # Reconnection settings - more conservative for Azure
             'reconnection': True,
-            'reconnectionAttempts': 5,
-            'reconnectionDelay': 2000,
-            'reconnectionDelayMax': 10000,
+            'reconnectionAttempts': 3,  # Reduced for Azure
+            'reconnectionDelay': 10000,  # Start with 10 seconds
+            'reconnectionDelayMax': 30000,  # Cap at 30 seconds
             
             # Azure-specific settings
             'forceNew': True,
@@ -83,9 +83,9 @@ def get_azure_socketio_kwargs():
             'engineio_logger': False,
             'always_connect': False,  # Don't auto-connect
             'reconnection': True,
-            'reconnection_attempts': 5,
-            'reconnection_delay': 2000,
-            'reconnection_delay_max': 10000
+            'reconnection_attempts': 3,  # Reduced for Azure
+            'reconnection_delay': 10000,  # Start with 10 seconds
+            'reconnection_delay_max': 30000  # Cap at 30 seconds
         }
     else:
         return {

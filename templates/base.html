@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="azure-environment" content="{{ 'true' if config.get('AZURE_ENVIRONMENT') else 'false' }}">
     <title>{% block title %}Rhythmic Project{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -79,6 +80,13 @@
     
     <!-- Activity Log Management -->
     <script src="{{ url_for('static', filename='js/activity-log.js') }}"></script>
+    
+    <!-- Environment detection -->
+    <script>
+        // Set environment variables for frontend
+        window.AZURE_ENVIRONMENT = {% if config.get('AZURE_ENVIRONMENT') %}true{% else %}false{% endif %};
+        console.log('Environment:', window.AZURE_ENVIRONMENT ? 'Azure' : 'Local');
+    </script>
     
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     {% block scripts %}{% endblock %}

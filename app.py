@@ -23,6 +23,9 @@ app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HT
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Important for OAuth flows
 
+# Add Azure environment detection to config
+app.config['AZURE_ENVIRONMENT'] = bool(os.environ.get('WEBSITE_SITE_NAME') or os.environ.get('APPSETTING_WEBSITE_SITE_NAME'))
+
 # Configure static file serving for Azure
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 31536000  # 1 year cache for static files
 
@@ -2764,8 +2767,10 @@ def share_project(id):
         error_details = traceback.format_exc()
         print(f"Sharing API error: {str(e)}")
         print(f"Traceback: {error_details}")
+        
+        # Return a more user-friendly error message
         return jsonify({
-            'error': f'Unexpected error: {str(e)}'
+            'error': 'Failed to process sharing request. Please try again later.'
         }), 500
 
 
@@ -3631,7 +3636,7 @@ def azure_services_status():
         })
         
     except Exception as e:
-        logger.error(f"Error getting Azure services status: {e}")
+        print(f"Error getting Azure services status: {e}")
         return jsonify({
             'error': 'Failed to get Azure services status',
             'details': str(e)

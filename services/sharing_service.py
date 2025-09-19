@@ -105,19 +105,29 @@ class SharingService:
         token = SharingToken.generate_secure_token()
         expires_at = datetime.utcnow() + timedelta(hours=expires_hours)
         
-        # Create sharing token record
-        sharing_token = SharingToken(
-            token=token,
-            project_id=project_id,
-            created_by=created_by,
-            role=role,
-            expires_at=expires_at,
-            max_uses=max_uses,
-            current_uses=0,
-            is_active=True
-        )
+        # Create sharing token record with error handling
+        try:
+            sharing_token = SharingToken(
+                token=token,
+                project_id=project_id,
+                created_by=created_by,
+                role=role,
+                expires_at=expires_at,
+                max_uses=max_uses,
+                current_uses=0,
+                is_active=True
+            )
+        except Exception as e:
+            logger.error(f"Error creating SharingToken: {str(e)}")
+            raise SharingServiceError("Failed to create sharing token")
         
-        db.session.add(sharing_token)
+        try:
+            db.session.add(sharing_token)
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Database error creating sharing token: {str(e)}")
+            raise SharingServiceError("Failed to save sharing token to database")
         
         # Log the activity
         try:

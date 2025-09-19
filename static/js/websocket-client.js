@@ -9,8 +9,9 @@ class ProjectWebSocketClient {
         this.currentProjectId = null;
         this.isConnected = false;
         this.reconnectAttempts = 0;
-        this.maxReconnectAttempts = 2; // Further reduced
-        this.reconnectDelay = 5000; // Much longer initial delay
+        this.isAzure = this.detectAzureEnvironment();
+        this.maxReconnectAttempts = this.isAzure ? 3 : 5; // Different limits for Azure vs local
+        this.reconnectDelay = this.isAzure ? 10000 : 3000; // Different delays for Azure vs local
         this.lastSyncTimestamp = null;
         this.connectionState = 'disconnected'; // disconnected, connecting, connected, error
         this.pageVisibilityHandler = null;
@@ -19,7 +20,7 @@ class ProjectWebSocketClient {
         // Debouncing for connection attempts
         this.connectionDebounceTimer = null;
         this.lastConnectionAttempt = 0;
-        this.minConnectionInterval = 10000; // Minimum 10 seconds between connection attempts
+        this.minConnectionInterval = this.isAzure ? 15000 : 5000; // Different intervals for Azure vs local
         
         // Event callbacks
         this.onConnected = null;
@@ -35,6 +36,29 @@ class ProjectWebSocketClient {
         
         // Set up page visibility and focus handlers for immediate reconnection
         this.setupPageVisibilityHandlers();
+    }
+    
+    /**
+     * Detect if running on Azure App Service
+     */
+    detectAzureEnvironment() {
+        // Check for Azure-specific indicators
+        const hostname = window.location.hostname;
+        const isAzureDomain = hostname.includes('azurewebsites.net') || 
+                             hostname.includes('azure.com') ||
+                             hostname.includes('canadacentral-01');
+        
+        // Check for Azure-specific meta tags or data attributes
+        const azureMeta = document.querySelector('meta[name="azure-environment"]');
+        const isAzureMeta = azureMeta && azureMeta.content === 'true';
+        
+        // Check for Azure-specific environment variables (if exposed)
+        const isAzureEnv = window.AZURE_ENVIRONMENT === true;
+        
+        const isAzure = isAzureDomain || isAzureMeta || isAzureEnv;
+        console.log('Environment detection:', { hostname, isAzureDomain, isAzureMeta, isAzureEnv, isAzure });
+        
+        return isAzure;
     }
     
     /**
@@ -229,24 +253,49 @@ class ProjectWebSocketClient {
                 return;
             }
             
+            // Prevent multiple simultaneous connections
+            if (this.connectionState === 'connecting' || this.connectionState === 'connected') {
+                console.log('Connection already in progress or established, skipping...');
+                return;
+            }
+            
+            // Check minimum connection interval
+            const now = Date.now();
+            if (now - this.lastConnectionAttempt < this.minConnectionInterval) {
+                console.log('Connection throttled, too soon since last attempt');
+                return;
+            }
+            
+            this.lastConnectionAttempt = now;
             this.connectionState = 'connecting';
             
-            // Initialize Socket.IO connection with Azure-optimized settings
-            this.socket = io({
-                transports: ['polling', 'websocket'], // Start with polling for Azure compatibility
-                upgrade: true,
+            // Initialize Socket.IO connection with environment-specific settings
+            const config = this.isAzure ? {
+                // Azure-optimized settings
+                transports: ['polling'], // Start with polling only for Azure stability
+                upgrade: false, // Disable upgrade to WebSocket for Azure
                 rememberUpgrade: false, // Don't remember upgrade on Azure
-                timeout: 15000, // Longer timeout for Azure
-                forceNew: false, // Don't force new connections unless necessary
-                reconnection: true,
-                reconnectionAttempts: 3, // Reduced attempts
-                reconnectionDelay: 3000, // Longer initial delay
-                reconnectionDelayMax: 15000, // Longer max delay
-                maxReconnectionAttempts: 3,
-                pingTimeout: 60000,
-                pingInterval: 25000,
+                timeout: 20000, // Longer timeout for Azure
+                forceNew: true, // Force new connections for Azure
+                reconnection: false, // Disable automatic reconnection (we handle it manually)
+                pingTimeout: 120000, // 2 minutes for Azure
+                pingInterval: 30000, // 30 seconds for Azure
                 autoConnect: true
-            });
+            } : {
+                // Local development settings
+                transports: ['websocket', 'polling'], // WebSocket first for local
+                upgrade: true, // Allow WebSocket upgrade
+                rememberUpgrade: true, // Remember successful upgrades
+                timeout: 10000, // Standard timeout for local
+                forceNew: false, // Don't force new connections
+                reconnection: false, // Disable automatic reconnection (we handle it manually)
+                pingTimeout: 60000, // 1 minute for local
+                pingInterval: 25000, // 25 seconds for local
+                autoConnect: true
+            };
+            
+            console.log('Socket.IO config for', this.isAzure ? 'Azure' : 'Local', ':', config);
+            this.socket = io(config);
             
             this.setupEventHandlers();
             
@@ -438,7 +487,7 @@ class ProjectWebSocketClient {
             // Reset attempts after a much longer delay to allow for manual retry
             setTimeout(() => {
                 this.reconnectAttempts = 0;
-                this.reconnectDelay = 5000;
+                this.reconnectDelay = 10000; // Start with 10 seconds
             }, 300000); // Reset after 5 minutes
             return;
         }
@@ -459,8 +508,10 @@ class ProjectWebSocketClient {
             }
         }, this.reconnectDelay);
         
-        // Exponential backoff, but cap at 60 seconds for much better stability
-        this.reconnectDelay = Math.min(this.reconnectDelay * 1.5, 60000);
+        // Exponential backoff with jitter, cap at 30 seconds for Azure stability
+        const baseDelay = Math.min(this.reconnectDelay * 1.5, 30000);
+        const jitter = Math.random() * 1000; // Add up to 1 second of jitter
+        this.reconnectDelay = Math.floor(baseDelay + jitter);
     }
     
     /**

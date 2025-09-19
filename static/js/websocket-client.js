@@ -20,7 +20,7 @@ class ProjectWebSocketClient {
         // Debouncing for connection attempts
         this.connectionDebounceTimer = null;
         this.lastConnectionAttempt = 0;
-        this.minConnectionInterval = this.isAzure ? 30000 : 5000; // Different intervals for Azure vs local
+        this.minConnectionInterval = this.isAzure ? 60000 : 5000; // Much longer interval for Azure (1 minute)
         
         // Event callbacks
         this.onConnected = null;
@@ -65,20 +65,22 @@ class ProjectWebSocketClient {
      * Set up page visibility and focus handlers for reconnection
      */
     setupPageVisibilityHandlers() {
-        // Handle page visibility changes (tab switching, minimizing)
+        // Handle page visibility changes (tab switching, minimizing) - MUCH more conservative
         this.pageVisibilityHandler = () => {
-            if (!document.hidden && this.shouldBeConnected()) {
-                // Debounce visibility change reconnections
+            if (!document.hidden && this.shouldBeConnected() && this.connectionState === 'disconnected') {
+                // Only reconnect if we're actually disconnected, not just tab switching
+                console.log('Page became visible, checking if reconnection needed...');
                 this.debouncedEnsureConnection();
             }
         };
         
-        // Handle window focus (returning to the page) - only if visibility change didn't already handle it
+        // Handle window focus (returning to the page) - MUCH more conservative
         this.focusHandler = () => {
-            if (this.shouldBeConnected() && !document.hidden) {
-                // Only trigger if visibility change didn't already handle it
+            if (this.shouldBeConnected() && !document.hidden && this.connectionState === 'disconnected') {
+                // Only reconnect if we're actually disconnected, not just clicking
+                console.log('Window focused, checking if reconnection needed...');
                 setTimeout(() => {
-                    if (this.shouldBeConnected() && !document.hidden) {
+                    if (this.shouldBeConnected() && !document.hidden && this.connectionState === 'disconnected') {
                         this.debouncedEnsureConnection();
                     }
                 }, 100);
@@ -143,13 +145,19 @@ class ProjectWebSocketClient {
         // Check if we've attempted connection too recently
         const now = Date.now();
         if (now - this.lastConnectionAttempt < this.minConnectionInterval) {
-            console.log('Connection attempt too recent, debouncing...');
+            console.log(`Connection attempt too recent, debouncing for ${this.minConnectionInterval - (now - this.lastConnectionAttempt)}ms...`);
             this.connectionDebounceTimer = setTimeout(() => {
                 // Double-check we still need connection after delay
                 if (this.shouldBeConnected()) {
                     this.ensureConnection();
                 }
             }, this.minConnectionInterval - (now - this.lastConnectionAttempt));
+            return;
+        }
+        
+        // Additional throttling: prevent multiple simultaneous connection attempts
+        if (this.connectionState === 'connecting') {
+            console.log('Already connecting, skipping duplicate attempt...');
             return;
         }
         
@@ -281,8 +289,8 @@ class ProjectWebSocketClient {
                 timeout: 30000, // Longer timeout for Azure
                 forceNew: true, // Force new connections for Azure
                 reconnection: false, // Disable automatic reconnection (we handle it manually)
-                pingTimeout: 180000, // 3 minutes for Azure
-                pingInterval: 60000, // 60 seconds for Azure (reduce polling frequency)
+                pingTimeout: 300000, // 5 minutes for Azure (much longer)
+                pingInterval: 120000, // 2 minutes for Azure (much longer)
                 autoConnect: true
             } : {
                 // Local development settings
@@ -721,11 +729,27 @@ class ProjectWebSocketClient {
 
 // Global WebSocket client instance
 let wsClient = null;
+let connectionAttempts = 0;
+const MAX_CONNECTION_ATTEMPTS = 3; // Maximum attempts per minute
+let lastConnectionReset = Date.now();
 
 /**
  * Initialize WebSocket client for the current page
  */
 function initializeWebSocket() {
+    // Reset connection attempts every minute
+    const now = Date.now();
+    if (now - lastConnectionReset > 60000) {
+        connectionAttempts = 0;
+        lastConnectionReset = now;
+    }
+    
+    // Limit connection attempts
+    if (connectionAttempts >= MAX_CONNECTION_ATTEMPTS) {
+        console.log('Too many connection attempts, throttling...');
+        return null;
+    }
+    
     if (wsClient) {
         // If client exists, ensure it's connected for the current page
         wsClient.ensureConnection();
@@ -738,6 +762,7 @@ function initializeWebSocket() {
         return null;
     }
     
+    connectionAttempts++;
     wsClient = new ProjectWebSocketClient();
     
     // Set up event handlers
@@ -801,13 +826,20 @@ function initializeWebSocket() {
  */
 function ensureWebSocketConnection() {
     if (wsClient) {
-        wsClient.ensureConnection();
+        // Only ensure connection if we're actually disconnected
+        if (wsClient.connectionState === 'disconnected') {
+            console.log('WebSocket disconnected, attempting reconnection...');
+            wsClient.ensureConnection();
+        } else {
+            console.log('WebSocket already connected, skipping...');
+        }
     } else {
         // Initialize if not already done
         const isProjectPage = window.location.pathname.includes('/projects/');
         const isSharingPage = window.location.pathname.includes('/sharing/');
         
         if (isProjectPage || isSharingPage) {
+            console.log('Initializing WebSocket for project/sharing page...');
             initializeWebSocket();
         }
     }
@@ -962,11 +994,14 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeWebSocketForCurrentPage();
 });
 
-// Handle page navigation (for SPAs or programmatic navigation)
+// Handle page navigation (for SPAs or programmatic navigation) - MUCH more conservative
 window.addEventListener('popstate', () => {
-    // Handle browser back/forward navigation
+    // Handle browser back/forward navigation - only if we're on a project page
     setTimeout(() => {
-        ensureWebSocketConnection();
+        if (window.location.pathname.includes('/projects/')) {
+            console.log('Navigation detected, checking if WebSocket connection needed...');
+            ensureWebSocketConnection();
+        }
     }, 100);
 });
 

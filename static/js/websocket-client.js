@@ -237,8 +237,16 @@ class ProjectWebSocketClient {
                 this.onError('connection_error', error.message);
             }
             
-            // Only attempt reconnect if we should be connected
-            if (this.shouldBeConnected()) {
+            // For 400 errors, wait longer before retrying and try different transport
+            if (error.message && (error.message.includes('400') || error.message.includes('Bad Request'))) {
+                console.log('Received 400 error, waiting longer before retry...');
+                setTimeout(() => {
+                    if (this.shouldBeConnected()) {
+                        // Try with polling only for 400 errors
+                        this.connectWithPollingOnly();
+                    }
+                }, 5000);
+            } else if (this.shouldBeConnected()) {
                 this.attemptReconnect();
             }
         });
@@ -350,6 +358,43 @@ class ProjectWebSocketClient {
         
         // Exponential backoff, but cap at 10 seconds for faster recovery
         this.reconnectDelay = Math.min(this.reconnectDelay * 1.5, 10000);
+    }
+    
+    /**
+     * Connect using polling only (for 400 error recovery)
+     */
+    connectWithPollingOnly() {
+        try {
+            console.log('Attempting connection with polling only...');
+            this.connectionState = 'connecting';
+            
+            // Disconnect existing socket if any
+            if (this.socket) {
+                this.socket.disconnect();
+            }
+            
+            // Initialize Socket.IO connection with polling only
+            this.socket = io({
+                transports: ['polling'], // Only polling
+                upgrade: false, // Disable upgrade to websocket
+                timeout: 15000, // Longer timeout
+                forceNew: true,
+                reconnection: true,
+                reconnectionAttempts: 3,
+                reconnectionDelay: 3000,
+                pingTimeout: 60000,
+                pingInterval: 25000
+            });
+            
+            this.setupEventHandlers();
+            
+        } catch (error) {
+            console.error('Failed to connect with polling only:', error);
+            this.connectionState = 'error';
+            if (this.onError) {
+                this.onError('polling_connection_failed', error.message);
+            }
+        }
     }
     
     /**

@@ -80,12 +80,21 @@ def get_azure_socketio_kwargs():
             'ping_timeout': config['ping_timeout'],
             'ping_interval': config['ping_interval'],
             'logger': True,
-            'engineio_logger': False
+            'engineio_logger': False,
+            'always_connect': False,  # Don't auto-connect
+            'reconnection': True,
+            'reconnection_attempts': 5,
+            'reconnection_delay': 2000,
+            'reconnection_delay_max': 10000
         }
     else:
         return {
             'cors_allowed_origins': config['cors_allowed_origins'],
             'async_mode': config['async_mode'],
             'logger': True,
-            'engineio_logger': True
+            'engineio_logger': True,
+            'always_connect': False,
+            'reconnection': True,
+            'reconnection_attempts': 3,
+            'reconnection_delay': 1000
         }

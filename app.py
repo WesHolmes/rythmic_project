@@ -895,24 +895,33 @@ except Exception as e:
 @socketio.on('connect')
 def handle_connect(auth):
     """Handle client connection"""
-    if not current_user.is_authenticated:
+    try:
+        if not current_user.is_authenticated:
+            print("Socket.IO connection rejected: User not authenticated")
+            disconnect()
+            return False
+        
+        print(f"User {current_user.id} ({current_user.name}) connected")
+        return True
+    except Exception as e:
+        print(f"Socket.IO connection error: {str(e)}")
         disconnect()
         return False
-    
-    print(f"User {current_user.id} ({current_user.name}) connected")
-    return True
 
 @socketio.on('disconnect')
 def handle_disconnect():
     """Handle client disconnection"""
-    if current_user.is_authenticated:
-        print(f"User {current_user.id} ({current_user.name}) disconnected")
-        
-        # Clean up all project connections for this user
-        if current_user.id in ws_handler.active_connections:
-            project_ids = list(ws_handler.active_connections[current_user.id].keys())
-            for project_id in project_ids:
-                ws_handler.disconnect(current_user.id, project_id)
+    try:
+        if current_user.is_authenticated:
+            print(f"User {current_user.id} ({current_user.name}) disconnected")
+            
+            # Clean up all project connections for this user
+            if current_user.id in ws_handler.active_connections:
+                project_ids = list(ws_handler.active_connections[current_user.id].keys())
+                for project_id in project_ids:
+                    ws_handler.disconnect(current_user.id, project_id)
+    except Exception as e:
+        print(f"Socket.IO disconnect error: {str(e)}")
 
 @socketio.on('join_project')
 def handle_join_project(data):
@@ -2704,6 +2713,10 @@ def share_project(id):
         }), 400
     
     except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Sharing API error: {str(e)}")
+        print(f"Traceback: {error_details}")
         return jsonify({
             'error': f'Unexpected error: {str(e)}'
         }), 500

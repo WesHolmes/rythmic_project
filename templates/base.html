@@ -69,8 +69,8 @@
     <!-- Include Activity Log Modal -->
     {% include 'activity_log_modal.html' %}
 
-    <!-- Socket.IO client library -->
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <!-- Socket.IO client library - DISABLED to prevent request flood -->
+    <!-- <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script> -->
     
     <!-- Shared Notification System -->
     <script src="{{ url_for('static', filename='js/notifications.js') }}"></script>

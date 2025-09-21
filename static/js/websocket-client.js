@@ -292,79 +292,11 @@ let wsClient = null;
 let isInitializing = false; // Prevent multiple initializations
 
 /**
- * Initialize WebSocket client for the current page - ultra-simplified version
+ * Initialize WebSocket client for the current page - DISABLED to stop request flood
  */
 function initializeWebSocket() {
-    // Prevent multiple simultaneous initializations
-    if (isInitializing) {
-        console.log('WebSocket initialization already in progress, skipping...');
-        return wsClient;
-    }
-    
-    if (wsClient) {
-        // If client exists, return it
-        return wsClient;
-    }
-    
-    // Check if Socket.IO is available
-    if (typeof io === 'undefined') {
-        console.warn('Socket.IO not available, sharing features disabled');
-        return null;
-    }
-    
-    // Only initialize if we're on a project or sharing page
-    if (!window.location.pathname.includes('/projects/') && !window.location.pathname.includes('/sharing/')) {
-        return null;
-    }
-    
-    isInitializing = true;
-    
-    try {
-        wsClient = new ProjectWebSocketClient();
-        
-        // Set up event handlers
-        wsClient.onConnected = () => {
-            console.log('WebSocket client connected for sharing');
-            showWebSocketStatus('connected');
-        };
-        
-        wsClient.onDisconnected = (reason) => {
-            console.log('WebSocket client disconnected:', reason);
-            showWebSocketStatus('disconnected');
-        };
-        
-        wsClient.onError = (type, message) => {
-            console.error('WebSocket error:', type, message);
-            showWebSocketStatus('error', message);
-        };
-        
-        wsClient.onProjectJoined = (data) => {
-            console.log('Successfully joined project for sharing:', data.project_id);
-            showWebSocketStatus('project_joined');
-        };
-        
-        wsClient.onActiveUsersUpdate = (users) => {
-            console.log('Active users:', users);
-            updateActiveUsersList(users);
-        };
-        
-        wsClient.onUserConnected = (userData) => {
-            console.log('User connected:', userData.user_name);
-            showUserNotification(`${userData.user_name} joined the project`, 'info');
-        };
-        
-        wsClient.onUserDisconnected = (userData) => {
-            console.log('User disconnected:', userData.user_name);
-            showUserNotification(`${userData.user_name} left the project`, 'info');
-        };
-        
-        // Connect to WebSocket
-        wsClient.connect();
-        
-        return wsClient;
-    } finally {
-        isInitializing = false;
-    }
+    console.log('WebSocket functionality temporarily disabled to prevent request flood');
+    return null;
 }
 
 /**

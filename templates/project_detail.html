@@ -1579,13 +1579,7 @@
     // Initialize Activity Log Manager
     window.activityLogManager = new ActivityLogManager();
     
-    // Initialize WebSocket if available
-    if (typeof initializeWebSocket === 'function') {
-        const wsClient = initializeWebSocket();
-        if (wsClient) {
-            wsClient.connect();
-            wsClient.joinProject({{ project.id }});
-        }
-    }
+    // WebSocket functionality temporarily disabled to prevent request flood
+    console.log('WebSocket initialization disabled to prevent excessive requests');
 </script>
 {% endblock %}

@@ -122,30 +122,10 @@ class ProjectRealtimeManager {
 let projectRealtime = null;
 let isProjectRealtimeInitializing = false;
 
-// Initialize when DOM is loaded - with protection against multiple initializations
+// Initialize when DOM is loaded - DISABLED to stop request flood
 document.addEventListener('DOMContentLoaded', () => {
-    // Prevent multiple initializations
-    if (isProjectRealtimeInitializing || projectRealtime) {
-        console.log('Project realtime already initialized or initializing, skipping...');
-        return;
-    }
-    
-    const projectElement = document.querySelector('[data-project-id]');
-    if (projectElement) {
-        isProjectRealtimeInitializing = true;
-        
-        try {
-            const projectId = parseInt(projectElement.dataset.projectId);
-            window.currentUserId = parseInt(document.body.dataset.userId || '0');
-            
-            projectRealtime = new ProjectRealtimeManager(projectId);
-            
-            // Make it globally accessible
-            window.projectRealtime = projectRealtime;
-        } finally {
-            isProjectRealtimeInitializing = false;
-        }
-    }
+    console.log('Project realtime functionality temporarily disabled to prevent request flood');
+    // WebSocket functionality disabled to stop excessive requests
 });
 
 // Clean up on page unload

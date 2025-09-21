@@ -17,10 +17,23 @@ class ProjectWebSocketClient {
         this.pageVisibilityHandler = null;
         this.focusHandler = null;
         
-        // Debouncing for connection attempts
+        // Event debouncing to reduce redundant broadcasts
+        this.eventDebounceTimers = {};
+        this.debounceDelay = 100; // 100ms debounce for events
+        
+        // Connection management - Azure optimized
         this.connectionDebounceTimer = null;
         this.lastConnectionAttempt = 0;
-        this.minConnectionInterval = this.isAzure ? 60000 : 5000; // Much longer interval for Azure (1 minute)
+        this.minConnectionInterval = this.isAzure ? 45000 : 10000; // Azure needs longer intervals due to proxy layer
+        this.lastSuccessfulConnection = 0;
+        this.connectionLock = false; // Prevent concurrent connection attempts
+        this.healthCheckEnabled = true;
+        this.connectionQuality = 'unknown'; // unknown, good, poor, failed
+        
+        // Azure-specific connection management
+        this.azureProxyRetryCount = 0;
+        this.maxAzureProxyRetries = 3;
+        this.azureConnectionStability = 0; // Track connection stability
         
         // Event callbacks
         this.onConnected = null;
@@ -65,30 +78,51 @@ class ProjectWebSocketClient {
      * Set up page visibility and focus handlers for reconnection
      */
     setupPageVisibilityHandlers() {
-        // Handle page visibility changes (tab switching, minimizing) - VERY conservative
+        // Handle page visibility changes (tab switching, minimizing) - Much more conservative
         this.pageVisibilityHandler = () => {
-            // Only reconnect if we're actually disconnected AND it's been more than 30 seconds
+            if (document.hidden) {
+                // Page hidden - don't do anything, just log
+                console.log('Page hidden, maintaining connection...');
+                return;
+            }
+            
+            // Page visible - only reconnect if truly disconnected and it's been a while
             const timeSinceLastConnection = Date.now() - this.lastConnectionAttempt;
-            if (!document.hidden && this.shouldBeConnected() && 
-                this.connectionState === 'disconnected' && timeSinceLastConnection > 30000) {
-                console.log('Page became visible, checking if reconnection needed...');
-                this.debouncedEnsureConnection();
+            const timeSinceLastSuccess = Date.now() - this.lastSuccessfulConnection;
+            
+            // Azure needs longer delays due to proxy layer and connection overhead
+            const minAttemptDelay = this.isAzure ? 60000 : 30000; // 1 minute for Azure, 30s for local
+            const minSuccessDelay = this.isAzure ? 120000 : 60000; // 2 minutes for Azure, 1 minute for local
+            
+            if (this.shouldBeConnected() && 
+                this.connectionState === 'disconnected' && 
+                timeSinceLastConnection > minAttemptDelay &&
+                timeSinceLastSuccess > minSuccessDelay) {
+                console.log('Page became visible after extended time, checking connection...');
+                this.smartReconnect();
             }
         };
         
-        // Handle window focus (returning to the page) - VERY conservative
+        // Handle window focus (returning to the page) - Very conservative
         this.focusHandler = () => {
-            // Only reconnect if we're actually disconnected AND it's been more than 30 seconds
+            // Only reconnect if we've been disconnected for a long time
             const timeSinceLastConnection = Date.now() - this.lastConnectionAttempt;
+            const timeSinceLastSuccess = Date.now() - this.lastSuccessfulConnection;
+            
+            // Azure needs much longer delays due to proxy layer
+            const minAttemptDelay = this.isAzure ? 120000 : 60000; // 2 minutes for Azure, 1 minute for local
+            const minSuccessDelay = this.isAzure ? 300000 : 120000; // 5 minutes for Azure, 2 minutes for local
+            
             if (this.shouldBeConnected() && !document.hidden && 
-                this.connectionState === 'disconnected' && timeSinceLastConnection > 30000) {
-                // Only reconnect if we're actually disconnected, not just clicking
-                console.log('Window focused, checking if reconnection needed...');
+                this.connectionState === 'disconnected' && 
+                timeSinceLastConnection > minAttemptDelay &&
+                timeSinceLastSuccess > minSuccessDelay) {
+                console.log('Window focused after extended time, checking connection...');
                 setTimeout(() => {
                     if (this.shouldBeConnected() && !document.hidden && this.connectionState === 'disconnected') {
-                        this.debouncedEnsureConnection();
+                        this.smartReconnect();
                     }
-                }, 100);
+                }, this.isAzure ? 1000 : 500); // Longer delay for Azure
             }
         };
         
@@ -105,6 +139,12 @@ class ProjectWebSocketClient {
             clearTimeout(this.connectionDebounceTimer);
             this.connectionDebounceTimer = null;
         }
+        
+        // Clear all event debounce timers
+        Object.values(this.eventDebounceTimers).forEach(timer => {
+            clearTimeout(timer);
+        });
+        this.eventDebounceTimers = {};
         
         // Remove event listeners
         if (this.pageVisibilityHandler) {
@@ -139,6 +179,39 @@ class ProjectWebSocketClient {
     }
     
     /**
+     * Smart reconnection that only reconnects when truly needed
+     */
+    smartReconnect() {
+        // Check if we're already connected or connecting
+        if (this.isWebSocketConnected() || this.connectionState === 'connecting') {
+            console.log('Already connected or connecting, skipping smart reconnect...');
+            return;
+        }
+        
+        // Check if we should be connected
+        if (!this.shouldBeConnected()) {
+            console.log('Should not be connected, skipping smart reconnect...');
+            return;
+        }
+        
+        // Check connection lock
+        if (this.connectionLock) {
+            console.log('Connection locked, skipping smart reconnect...');
+            return;
+        }
+        
+        // Check minimum interval
+        const now = Date.now();
+        if (now - this.lastConnectionAttempt < this.minConnectionInterval) {
+            console.log(`Smart reconnect too recent, waiting ${this.minConnectionInterval - (now - this.lastConnectionAttempt)}ms...`);
+            return;
+        }
+        
+        // Proceed with smart reconnection
+        this.ensureConnection();
+    }
+    
+    /**
      * Debounced version of ensureConnection to prevent rapid reconnection attempts
      */
     debouncedEnsureConnection() {
@@ -154,20 +227,20 @@ class ProjectWebSocketClient {
             this.connectionDebounceTimer = setTimeout(() => {
                 // Double-check we still need connection after delay
                 if (this.shouldBeConnected()) {
-                    this.ensureConnection();
+                    this.smartReconnect();
                 }
             }, this.minConnectionInterval - (now - this.lastConnectionAttempt));
             return;
         }
         
         // Additional throttling: prevent multiple simultaneous connection attempts
-        if (this.connectionState === 'connecting') {
-            console.log('Already connecting, skipping duplicate attempt...');
+        if (this.connectionState === 'connecting' || this.connectionLock) {
+            console.log('Already connecting or locked, skipping duplicate attempt...');
             return;
         }
         
         // Proceed with connection attempt
-        this.ensureConnection();
+        this.smartReconnect();
     }
     
     /**
@@ -176,6 +249,12 @@ class ProjectWebSocketClient {
     ensureConnection() {
         if (!this.shouldBeConnected()) {
             console.log('WebSocket not needed for current page');
+            return;
+        }
+        
+        // Check connection lock
+        if (this.connectionLock) {
+            console.log('Connection locked, skipping ensureConnection...');
             return;
         }
         
@@ -211,19 +290,20 @@ class ProjectWebSocketClient {
     }
     
     /**
-     * Force reconnection with proper state management
+     * Force reconnection with proper state management and locking
      */
     forceReconnect() {
-        // Don't force reconnect if already connecting
-        if (this.connectionState === 'connecting') {
-            console.log('Already connecting, skipping force reconnect...');
+        // Don't force reconnect if already connecting or locked
+        if (this.connectionState === 'connecting' || this.connectionLock) {
+            console.log('Already connecting or locked, skipping force reconnect...');
             return;
         }
         
         console.log('Force reconnecting WebSocket...');
+        this.connectionLock = true; // Lock to prevent concurrent attempts
         this.connectionState = 'connecting';
         this.reconnectAttempts = 0; // Reset attempts for immediate reconnection
-        this.reconnectDelay = 2000; // Reset delay
+        this.reconnectDelay = 1000; // Reduced delay for faster reconnection
         
         // Show connecting status
         if (this.onDisconnected) {
@@ -234,12 +314,12 @@ class ProjectWebSocketClient {
             this.socket.disconnect();
         }
         
-        // Connect with a small delay to allow cleanup
+        // Connect with a smaller delay to allow cleanup
         setTimeout(() => {
             if (this.shouldBeConnected()) {
                 this.connect();
             }
-        }, 500);
+        }, 200); // Reduced from 500ms to 200ms
     }
     
     /**
@@ -287,15 +367,15 @@ class ProjectWebSocketClient {
             
             // Initialize Socket.IO connection with environment-specific settings
             const config = this.isAzure ? {
-                // Azure-optimized settings
-                transports: ['polling'], // Start with polling only for Azure stability
-                upgrade: false, // Disable upgrade to WebSocket for Azure
-                rememberUpgrade: false, // Don't remember upgrade on Azure
-                timeout: 30000, // Longer timeout for Azure
-                forceNew: true, // Force new connections for Azure
+                // Azure-optimized settings - allow WebSocket upgrade for better performance
+                transports: ['polling', 'websocket'], // Allow both transports
+                upgrade: true, // Enable WebSocket upgrade for better performance
+                rememberUpgrade: true, // Remember successful upgrades
+                timeout: 20000, // Reduced timeout for faster failure detection
+                forceNew: false, // Don't force new connections unnecessarily
                 reconnection: false, // Disable automatic reconnection (we handle it manually)
-                pingTimeout: 300000, // 5 minutes for Azure (much longer)
-                pingInterval: 120000, // 2 minutes for Azure (much longer)
+                pingTimeout: 120000, // 2 minutes for Azure (reduced from 5 minutes)
+                pingInterval: 60000, // 1 minute for Azure (reduced from 2 minutes)
                 autoConnect: true
             } : {
                 // Local development settings
@@ -333,8 +413,18 @@ class ProjectWebSocketClient {
             console.log('WebSocket connected');
             this.isConnected = true;
             this.connectionState = 'connected';
+            this.connectionLock = false; // Release lock on successful connection
+            this.lastSuccessfulConnection = Date.now();
+            this.connectionQuality = 'good';
             this.reconnectAttempts = 0;
             this.reconnectDelay = 1000;
+            
+            // Azure-specific connection tracking
+            if (this.isAzure) {
+                this.azureConnectionStability++;
+                this.azureProxyRetryCount = 0; // Reset proxy retry count on successful connection
+                console.log(`Azure connection stability: ${this.azureConnectionStability}`);
+            }
             
             if (this.onConnected) {
                 this.onConnected();
@@ -347,10 +437,11 @@ class ProjectWebSocketClient {
                 this.currentProjectId = projectId;
                 this.joinProject(projectId);
                 
-                // Synchronize state after reconnection
+                // Azure needs longer sync delay due to proxy layer
+                const syncDelay = this.isAzure ? 1000 : 500;
                 setTimeout(() => {
                     this.synchronizeState();
-                }, 500); // Reduced delay for faster sync
+                }, syncDelay);
             }
         });
         
@@ -358,6 +449,8 @@ class ProjectWebSocketClient {
             console.log('WebSocket disconnected:', reason);
             this.isConnected = false;
             this.connectionState = 'disconnected';
+            this.connectionLock = false; // Release lock on disconnect
+            this.connectionQuality = 'poor'; // Mark connection as poor after disconnect
             
             if (this.onDisconnected) {
                 this.onDisconnected(reason);
@@ -370,7 +463,7 @@ class ProjectWebSocketClient {
                     if (this.shouldBeConnected()) {
                         this.attemptReconnect();
                     }
-                }, 15000); // 15 seconds
+                }, 30000); // Increased to 30 seconds
                 return;
             }
             
@@ -380,13 +473,26 @@ class ProjectWebSocketClient {
                     if (this.shouldBeConnected()) {
                         this.attemptReconnect();
                     }
-                }, 10000); // 10 seconds
+                }, 20000); // Increased to 20 seconds
             }
         });
         
         this.socket.on('connect_error', (error) => {
             console.error('WebSocket connection error:', error);
             this.connectionState = 'error';
+            this.connectionLock = false; // Release lock on error
+            
+            // Azure-specific error handling
+            if (this.isAzure) {
+                this.azureProxyRetryCount++;
+                console.log(`Azure proxy retry count: ${this.azureProxyRetryCount}`);
+                
+                // If too many proxy errors, increase delays significantly
+                if (this.azureProxyRetryCount >= this.maxAzureProxyRetries) {
+                    this.minConnectionInterval = 300000; // 5 minutes for Azure after multiple failures
+                    console.log('Azure proxy errors exceeded, increasing connection interval to 5 minutes');
+                }
+            }
             
             if (this.onError) {
                 this.onError('connection_error', error.message);
@@ -394,20 +500,22 @@ class ProjectWebSocketClient {
             
             // For 400 errors, wait much longer before retrying and try different transport
             if (error.message && (error.message.includes('400') || error.message.includes('Bad Request'))) {
-                console.log('Received 400 error, waiting much longer before retry...');
+                const retryDelay = this.isAzure ? 60000 : 20000; // 1 minute for Azure, 20s for local
+                console.log(`Received 400 error, waiting ${retryDelay/1000}s before retry...`);
                 setTimeout(() => {
                     if (this.shouldBeConnected()) {
                         // Try with polling only for 400 errors
                         this.connectWithPollingOnly();
                     }
-                }, 20000); // Much longer delay for 400 errors
+                }, retryDelay);
             } else if (this.shouldBeConnected()) {
                 // Wait much longer before attempting reconnection for other errors
+                const retryDelay = this.isAzure ? 45000 : 15000; // 45s for Azure, 15s for local
                 setTimeout(() => {
                     if (this.shouldBeConnected()) {
                         this.attemptReconnect();
                     }
-                }, 15000); // Much longer delay
+                }, retryDelay);
             }
         });
         
@@ -628,7 +736,7 @@ class ProjectWebSocketClient {
     }
     
     /**
-     * Send a task update to other collaborators
+     * Send a task update to other collaborators with debouncing
      * @param {number} projectId - The project ID
      * @param {object} taskData - The task data
      * @param {string} updateType - Type of update (task_create, task_update, task_delete)
@@ -639,15 +747,19 @@ class ProjectWebSocketClient {
             return;
         }
         
-        this.socket.emit('task_update', {
-            project_id: projectId,
-            task_data: taskData,
-            update_type: updateType
+        // Debounce task updates to prevent spam
+        const eventKey = `task_${projectId}_${taskData.id || 'new'}`;
+        this._debounceEvent(eventKey, () => {
+            this.socket.emit('task_update', {
+                project_id: projectId,
+                task_data: taskData,
+                update_type: updateType
+            });
         });
     }
     
     /**
-     * Send a project update to other collaborators
+     * Send a project update to other collaborators with debouncing
      * @param {number} projectId - The project ID
      * @param {object} projectData - The project data
      * @param {string} updateType - Type of update
@@ -658,10 +770,14 @@ class ProjectWebSocketClient {
             return;
         }
         
-        this.socket.emit('project_update', {
-            project_id: projectId,
-            project_data: projectData,
-            update_type: updateType
+        // Debounce project updates to prevent spam
+        const eventKey = `project_${projectId}_${updateType}`;
+        this._debounceEvent(eventKey, () => {
+            this.socket.emit('project_update', {
+                project_id: projectId,
+                project_data: projectData,
+                update_type: updateType
+            });
         });
     }
     
@@ -709,16 +825,52 @@ class ProjectWebSocketClient {
     }
     
     /**
-     * Start connection health monitoring
+     * Debounce events to prevent spam
+     * @param {string} eventKey - Unique key for the event
+     * @param {Function} callback - Function to execute after debounce delay
+     */
+    _debounceEvent(eventKey, callback) {
+        // Clear existing timer for this event
+        if (this.eventDebounceTimers[eventKey]) {
+            clearTimeout(this.eventDebounceTimers[eventKey]);
+        }
+        
+        // Set new timer
+        this.eventDebounceTimers[eventKey] = setTimeout(() => {
+            callback();
+            delete this.eventDebounceTimers[eventKey];
+        }, this.debounceDelay);
+    }
+    
+    /**
+     * Start connection health monitoring with Azure-optimized logic
      */
     startHealthMonitoring() {
-        // Check connection health every 30 seconds
+        // Azure needs longer health check intervals due to proxy layer
+        const healthCheckInterval = this.isAzure ? 120000 : 60000; // 2 minutes for Azure, 1 minute for local
+        
         this.healthCheckInterval = setInterval(() => {
-            if (this.shouldBeConnected() && !this.isWebSocketConnected()) {
-                console.log('Health check failed, attempting reconnection...');
-                this.ensureConnection();
+            if (!this.healthCheckEnabled) {
+                return; // Skip if health check is disabled
             }
-        }, 30000);
+            
+            if (this.shouldBeConnected() && !this.isWebSocketConnected()) {
+                // Only attempt reconnection if we've been disconnected for a while
+                const timeSinceLastConnection = Date.now() - this.lastConnectionAttempt;
+                const timeSinceLastSuccess = Date.now() - this.lastSuccessfulConnection;
+                
+                // Azure needs much longer delays due to proxy layer and connection overhead
+                const minConnectionDelay = this.isAzure ? 180000 : 60000; // 3 minutes for Azure, 1 minute for local
+                const minSuccessDelay = this.isAzure ? 300000 : 120000; // 5 minutes for Azure, 2 minutes for local
+                
+                if (timeSinceLastConnection > minConnectionDelay && timeSinceLastSuccess > minSuccessDelay) {
+                    console.log('Health check failed after extended time, attempting reconnection...');
+                    this.smartReconnect();
+                } else {
+                    console.log('Health check failed but too recent, skipping reconnection...');
+                }
+            }
+        }, healthCheckInterval);
     }
     
     /**
@@ -831,10 +983,15 @@ function initializeWebSocket() {
  */
 function ensureWebSocketConnection() {
     if (wsClient) {
-        // Only ensure connection if we're actually disconnected
+        // Only ensure connection if we're actually disconnected and it's been a while
         if (wsClient.connectionState === 'disconnected') {
-            console.log('WebSocket disconnected, attempting reconnection...');
-            wsClient.ensureConnection();
+            const timeSinceLastConnection = Date.now() - wsClient.lastConnectionAttempt;
+            if (timeSinceLastConnection > 30000) { // 30 seconds
+                console.log('WebSocket disconnected for extended time, attempting smart reconnection...');
+                wsClient.smartReconnect();
+            } else {
+                console.log('WebSocket disconnected but too recent, skipping...');
+            }
         } else {
             console.log('WebSocket already connected, skipping...');
         }
@@ -999,15 +1156,21 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeWebSocketForCurrentPage();
 });
 
-// Handle page navigation (for SPAs or programmatic navigation) - MUCH more conservative
+// Handle page navigation (for SPAs or programmatic navigation) - Very conservative
 window.addEventListener('popstate', () => {
     // Handle browser back/forward navigation - only if we're on a project page
     setTimeout(() => {
         if (window.location.pathname.includes('/projects/')) {
             console.log('Navigation detected, checking if WebSocket connection needed...');
-            ensureWebSocketConnection();
+            // Only ensure connection if we're actually disconnected and it's been a while
+            if (wsClient && wsClient.connectionState === 'disconnected') {
+                const timeSinceLastConnection = Date.now() - wsClient.lastConnectionAttempt;
+                if (timeSinceLastConnection > 30000) { // 30 seconds
+                    ensureWebSocketConnection();
+                }
+            }
         }
-    }, 100);
+    }, 500); // Increased delay to prevent rapid reconnections
 });
 
 // Note: Window focus is handled by the WebSocket client's own focus handler

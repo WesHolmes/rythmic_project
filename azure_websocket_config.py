@@ -19,26 +19,26 @@ def get_azure_websocket_config():
     """Get Azure-optimized WebSocket configuration"""
     if is_azure_app_service():
         return {
-            # Use polling first for better Azure compatibility
-            'transports': ['polling', 'websocket'],
+            # Use both transports for better performance
+            'transports': ['websocket', 'polling'],
             
-            # Longer timeouts for Azure's proxy layer
-            'ping_timeout': 120,  # Increased for Azure stability
-            'ping_interval': 30,  # Increased for Azure stability
+            # Optimized timeouts for better performance
+            'ping_timeout': 60,  # Reduced for faster failure detection
+            'ping_interval': 25,  # Reduced for better responsiveness
             
-            # Connection settings
+            # Connection settings - allow upgrades for better performance
             'upgrade': True,
-            'rememberUpgrade': False,  # Don't cache upgrade on Azure
+            'rememberUpgrade': True,  # Cache successful upgrades
             
-            # Reconnection settings - more conservative for Azure
+            # Reconnection settings - more aggressive for better UX
             'reconnection': True,
-            'reconnectionAttempts': 3,  # Reduced for Azure
-            'reconnectionDelay': 10000,  # Start with 10 seconds
-            'reconnectionDelayMax': 30000,  # Cap at 30 seconds
+            'reconnectionAttempts': 5,  # Increased for better reliability
+            'reconnectionDelay': 5000,  # Start with 5 seconds
+            'reconnectionDelayMax': 20000,  # Cap at 20 seconds
             
-            # Azure-specific settings
-            'forceNew': True,
-            'timeout': 10000,
+            # Azure-specific settings - less aggressive
+            'forceNew': False,  # Don't force new connections unnecessarily
+            'timeout': 15000,  # Increased timeout for Azure proxy layer
             
             # CORS settings
             'cors_allowed_origins': "*",

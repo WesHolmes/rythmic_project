@@ -717,6 +717,43 @@ class ProjectWebSocketHandler:
     def __init__(self):
         self.active_connections = {}  # {user_id: {project_id: session_id}}
         self.project_rooms = {}       # {project_id: set(user_ids)}
+        
+        # Connection pooling and caching for better performance
+        self.connection_cache = {}    # Cache for frequently accessed data
+        self.cache_ttl = 300         # 5 minutes cache TTL
+        self.last_cache_cleanup = datetime.utcnow()
+    
+    def _get_cached_data(self, key):
+        """Get data from cache if not expired"""
+        if key in self.connection_cache:
+            data, timestamp = self.connection_cache[key]
+            if (datetime.utcnow() - timestamp).seconds < self.cache_ttl:
+                return data
+            else:
+                del self.connection_cache[key]
+        return None
+    
+    def _set_cached_data(self, key, data):
+        """Set data in cache with timestamp"""
+        self.connection_cache[key] = (data, datetime.utcnow())
+        
+        # Cleanup old cache entries periodically
+        if (datetime.utcnow() - self.last_cache_cleanup).seconds > 600:  # Every 10 minutes
+            self._cleanup_cache()
+    
+    def _cleanup_cache(self):
+        """Clean up expired cache entries"""
+        current_time = datetime.utcnow()
+        expired_keys = []
+        
+        for key, (data, timestamp) in self.connection_cache.items():
+            if (current_time - timestamp).seconds > self.cache_ttl:
+                expired_keys.append(key)
+        
+        for key in expired_keys:
+            del self.connection_cache[key]
+        
+        self.last_cache_cleanup = current_time
     
     def _cleanup_user_project_sessions(self, user_id, project_id):
         """Clean up any existing sessions for a user/project combination"""
@@ -777,10 +814,17 @@ class ProjectWebSocketHandler:
             return None
     
     def connect(self, user_id, project_id, session_id):
-        """Handle new WebSocket connection with authentication"""
+        """Handle new WebSocket connection with authentication and Azure optimization"""
         try:
-            # Verify user has access to the project
-            project = Project.query.get(project_id)
+            # Check if user already has an active session for this project
+            if (user_id in self.active_connections and 
+                project_id in self.active_connections[user_id] and
+                self.active_connections[user_id][project_id] == session_id):
+                # User already connected with same session, just return success
+                return True
+            
+            # Verify user has access to the project (optimize database query)
+            project = Project.query.filter_by(id=project_id).first()
             if not project or not project.is_accessible_by(user_id):
                 return False
             
@@ -799,27 +843,48 @@ class ProjectWebSocketHandler:
                 self.project_rooms[project_id] = set()
             self.project_rooms[project_id].add(user_id)
             
-            # Create new active session in database
-            new_session = ActiveSession(
-                user_id=user_id,
-                project_id=project_id,
-                session_id=session_id
-            )
-            db.session.add(new_session)
-            db.session.commit()
-            
-            # Notify other users in the project about new connection
-            user = User.query.get(user_id)
-            self.broadcast_update(project_id, 'user_connected', {
-                'user_id': user_id,
-                'user_name': user.name,
-                'timestamp': datetime.utcnow().isoformat()
-            }, exclude_user=user_id)
+            # Batch database operations for better performance
+            try:
+                # Create new active session in database
+                new_session = ActiveSession(
+                    user_id=user_id,
+                    project_id=project_id,
+                    session_id=session_id
+                )
+                db.session.add(new_session)
+                
+                # Only notify other users if this is a new connection (not a reconnection)
+                user_was_already_in_project = (project_id in self.project_rooms and 
+                                             user_id in self.project_rooms[project_id] and 
+                                             len(self.project_rooms[project_id]) > 1)
+                
+                if not user_was_already_in_project:
+                    # Get user info for notification (optimize query)
+                    user = User.query.filter_by(id=user_id).first()
+                    if user:
+                        self.broadcast_update(project_id, 'user_connected', {
+                            'user_id': user_id,
+                            'user_name': user.name,
+                            'timestamp': datetime.utcnow().isoformat()
+                        }, exclude_user=user_id)
+                
+                # Commit database changes
+                db.session.commit()
+                
+            except Exception as db_error:
+                print(f"Database error in WebSocket connect: {db_error}")
+                db.session.rollback()
+                # Still return True for connection, but log the database error
+                return True
             
             return True
             
         except Exception as e:
             print(f"Error in WebSocket connect: {e}")
+            try:
+                db.session.rollback()
+            except:
+                pass
             return False
     
     def disconnect(self, user_id, project_id):
@@ -862,11 +927,12 @@ class ProjectWebSocketHandler:
             print(f"Error in WebSocket disconnect: {e}")
     
     def broadcast_update(self, project_id, update_type, data, exclude_user=None):
-        """Broadcast update to all project collaborators"""
+        """Broadcast update to all project collaborators with optimized performance"""
         try:
             if project_id not in self.project_rooms:
                 return
             
+            # Pre-build message once to avoid repeated object creation
             message = {
                 'type': update_type,
                 'data': data,
@@ -874,15 +940,22 @@ class ProjectWebSocketHandler:
                 'project_id': project_id
             }
             
-            # Send to all users in the project room
+            # Optimize by collecting valid sessions first, then broadcasting
+            valid_sessions = []
             for user_id in self.project_rooms[project_id]:
                 if exclude_user and user_id == exclude_user:
                     continue
                 
                 if (user_id in self.active_connections and 
                     project_id in self.active_connections[user_id]):
-                    
                     session_id = self.active_connections[user_id][project_id]
+                    valid_sessions.append(session_id)
+            
+            # Batch broadcast to all valid sessions
+            if valid_sessions:
+                socketio.emit('project_update', message, room=valid_sessions[0])
+                # If multiple sessions, emit to each one
+                for session_id in valid_sessions[1:]:
                     socketio.emit('project_update', message, room=session_id)
             
         except Exception as e:
@@ -901,21 +974,44 @@ class ProjectWebSocketHandler:
             print(f"Error sending message to user: {e}")
     
     def get_active_users(self, project_id):
-        """Get list of active users for a project"""
-        if project_id not in self.project_rooms:
+        """Get list of active users for a project with caching"""
+        try:
+            # Check cache first
+            cache_key = f"active_users_{project_id}"
+            cached_users = self._get_cached_data(cache_key)
+            if cached_users is not None:
+                return cached_users
+            
+            if project_id not in self.project_rooms:
+                return []
+            
+            active_users = []
+            for user_id in self.project_rooms[project_id]:
+                # Check user cache first
+                user_cache_key = f"user_{user_id}"
+                cached_user = self._get_cached_data(user_cache_key)
+                
+                if cached_user:
+                    active_users.append(cached_user)
+                else:
+                    # Query database and cache result
+                    user = User.query.filter_by(id=user_id).first()
+                    if user:
+                        user_data = {
+                            'id': user_id,
+                            'name': user.name,
+                            'avatar_url': user.avatar_url
+                        }
+                        self._set_cached_data(user_cache_key, user_data)
+                        active_users.append(user_data)
+            
+            # Cache the active users list
+            self._set_cached_data(cache_key, active_users)
+            return active_users
+            
+        except Exception as e:
+            print(f"Error getting active users: {e}")
             return []
-        
-        active_users = []
-        for user_id in self.project_rooms[project_id]:
-            user = User.query.get(user_id)
-            if user:
-                active_users.append({
-                    'id': user_id,
-                    'name': user.name,
-                    'avatar_url': user.avatar_url
-                })
-        
-        return active_users
 
 # Initialize WebSocket handler
 ws_handler = ProjectWebSocketHandler()
@@ -1052,7 +1148,7 @@ def handle_leave_project(data):
 
 @socketio.on('task_update')
 def handle_task_update(data):
-    """Handle real-time task updates"""
+    """Handle real-time task updates with optimized database queries"""
     if not current_user.is_authenticated:
         return
     
@@ -1064,19 +1160,22 @@ def handle_task_update(data):
         emit('error', {'message': 'Project ID and task data are required'})
         return
     
-    # Verify user has permission to update tasks
-    project = Project.query.get(project_id)
+    # Optimized permission check - use filter_by for better performance
+    project = Project.query.filter_by(id=project_id).first()
     if not project or not project.is_accessible_by(current_user.id):
         emit('error', {'message': 'Access denied'})
         return
     
+    # Pre-build user data to avoid repeated database access
+    user_data = {
+        'id': current_user.id,
+        'name': current_user.name
+    }
+    
     # Broadcast the update to all project collaborators
     update_data = {
         'task_data': task_data,
-        'user': {
-            'id': current_user.id,
-            'name': current_user.name
-        },
+        'user': user_data,
         'update_type': update_type
     }
     
@@ -1084,7 +1183,7 @@ def handle_task_update(data):
 
 @socketio.on('project_update')
 def handle_project_update(data):
-    """Handle real-time project updates"""
+    """Handle real-time project updates with optimized database queries"""
     if not current_user.is_authenticated:
         return
     
@@ -1096,19 +1195,22 @@ def handle_project_update(data):
         emit('error', {'message': 'Project ID and project data are required'})
         return
     
-    # Verify user has permission to update project
-    project = Project.query.get(project_id)
+    # Optimized permission check - use filter_by for better performance
+    project = Project.query.filter_by(id=project_id).first()
     if not project or not project.is_accessible_by(current_user.id):
         emit('error', {'message': 'Access denied'})
         return
     
+    # Pre-build user data to avoid repeated database access
+    user_data = {
+        'id': current_user.id,
+        'name': current_user.name
+    }
+    
     # Broadcast the update to all project collaborators
     update_data = {
         'project_data': project_data,
-        'user': {
-            'id': current_user.id,
-            'name': current_user.name
-        },
+        'user': user_data,
         'update_type': update_type
     }
     

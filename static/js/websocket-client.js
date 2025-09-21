@@ -72,7 +72,7 @@ class ProjectWebSocketClient {
     }
     
     /**
-     * Initialize WebSocket connection - simplified version
+     * Initialize WebSocket connection - ultra-simplified version
      */
     connect() {
         try {
@@ -89,18 +89,27 @@ class ProjectWebSocketClient {
                 return;
             }
             
+            // Check if we already have a socket
+            if (this.socket) {
+                console.log('Socket already exists, skipping connection...');
+                return;
+            }
+            
             this.connectionState = 'connecting';
             
-            // Simple Socket.IO connection configuration
+            // Ultra-simple Socket.IO connection configuration - no reconnection at all
             const config = {
-                transports: ['websocket', 'polling'],
-                upgrade: true,
-                timeout: 10000,
-                reconnection: false, // No automatic reconnection
+                transports: ['polling'], // Only polling to avoid WebSocket issues
+                upgrade: false, // Disable WebSocket upgrade
+                timeout: 5000, // Shorter timeout
+                reconnection: false, // Absolutely no reconnection
+                reconnectionAttempts: 0, // No attempts
+                reconnectionDelay: 0, // No delay
+                reconnectionDelayMax: 0, // No max delay
                 autoConnect: true
             };
             
-            console.log('Connecting to WebSocket for sharing features...');
+            console.log('Connecting to WebSocket for sharing features (polling only)...');
             this.socket = io(config);
             
             this.setupEventHandlers();
@@ -280,11 +289,18 @@ class ProjectWebSocketClient {
 
 // Global WebSocket client instance
 let wsClient = null;
+let isInitializing = false; // Prevent multiple initializations
 
 /**
- * Initialize WebSocket client for the current page - simplified version
+ * Initialize WebSocket client for the current page - ultra-simplified version
  */
 function initializeWebSocket() {
+    // Prevent multiple simultaneous initializations
+    if (isInitializing) {
+        console.log('WebSocket initialization already in progress, skipping...');
+        return wsClient;
+    }
+    
     if (wsClient) {
         // If client exists, return it
         return wsClient;
@@ -301,48 +317,54 @@ function initializeWebSocket() {
         return null;
     }
     
-    wsClient = new ProjectWebSocketClient();
+    isInitializing = true;
     
-    // Set up event handlers
-    wsClient.onConnected = () => {
-        console.log('WebSocket client connected for sharing');
-        showWebSocketStatus('connected');
-    };
-    
-    wsClient.onDisconnected = (reason) => {
-        console.log('WebSocket client disconnected:', reason);
-        showWebSocketStatus('disconnected');
-    };
-    
-    wsClient.onError = (type, message) => {
-        console.error('WebSocket error:', type, message);
-        showWebSocketStatus('error', message);
-    };
-    
-    wsClient.onProjectJoined = (data) => {
-        console.log('Successfully joined project for sharing:', data.project_id);
-        showWebSocketStatus('project_joined');
-    };
-    
-    wsClient.onActiveUsersUpdate = (users) => {
-        console.log('Active users:', users);
-        updateActiveUsersList(users);
-    };
-    
-    wsClient.onUserConnected = (userData) => {
-        console.log('User connected:', userData.user_name);
-        showUserNotification(`${userData.user_name} joined the project`, 'info');
-    };
-    
-    wsClient.onUserDisconnected = (userData) => {
-        console.log('User disconnected:', userData.user_name);
-        showUserNotification(`${userData.user_name} left the project`, 'info');
-    };
-    
-    // Connect to WebSocket
-    wsClient.connect();
-    
-    return wsClient;
+    try {
+        wsClient = new ProjectWebSocketClient();
+        
+        // Set up event handlers
+        wsClient.onConnected = () => {
+            console.log('WebSocket client connected for sharing');
+            showWebSocketStatus('connected');
+        };
+        
+        wsClient.onDisconnected = (reason) => {
+            console.log('WebSocket client disconnected:', reason);
+            showWebSocketStatus('disconnected');
+        };
+        
+        wsClient.onError = (type, message) => {
+            console.error('WebSocket error:', type, message);
+            showWebSocketStatus('error', message);
+        };
+        
+        wsClient.onProjectJoined = (data) => {
+            console.log('Successfully joined project for sharing:', data.project_id);
+            showWebSocketStatus('project_joined');
+        };
+        
+        wsClient.onActiveUsersUpdate = (users) => {
+            console.log('Active users:', users);
+            updateActiveUsersList(users);
+        };
+        
+        wsClient.onUserConnected = (userData) => {
+            console.log('User connected:', userData.user_name);
+            showUserNotification(`${userData.user_name} joined the project`, 'info');
+        };
+        
+        wsClient.onUserDisconnected = (userData) => {
+            console.log('User disconnected:', userData.user_name);
+            showUserNotification(`${userData.user_name} left the project`, 'info');
+        };
+        
+        // Connect to WebSocket
+        wsClient.connect();
+        
+        return wsClient;
+    } finally {
+        isInitializing = false;
+    }
 }
 
 /**
@@ -355,7 +377,7 @@ function ensureWebSocketConnection() {
 }
 
 /**
- * Show WebSocket connection status - simplified
+ * Show WebSocket connection status - simplified for sharing only
  * @param {string} status - Connection status
  * @param {string} message - Optional message
  */
@@ -368,16 +390,16 @@ function showWebSocketStatus(status, message = '') {
     
     switch (status) {
         case 'connected':
-            statusElement.textContent = '🟢 Sharing active';
+            statusElement.textContent = '🟢 Connected';
             break;
         case 'disconnected':
-            statusElement.textContent = '🔴 Sharing disconnected';
+            statusElement.textContent = '🔴 Disconnected';
             break;
         case 'error':
-            statusElement.textContent = `⚠️ Connection error: ${message}`;
+            statusElement.textContent = `⚠️ Error: ${message}`;
             break;
         case 'project_joined':
-            statusElement.textContent = '🟢 Project sharing active';
+            statusElement.textContent = '🟢 Connected';
             break;
         case 'connecting':
             statusElement.textContent = '🔄 Connecting...';
@@ -386,14 +408,18 @@ function showWebSocketStatus(status, message = '') {
             statusElement.textContent = status;
     }
     
-    // Auto-hide status after successful connection
+    // Auto-hide status after successful connection to reduce UI clutter
     if (status === 'connected' || status === 'project_joined') {
         setTimeout(() => {
             if (statusElement.classList.contains('connected') || statusElement.classList.contains('project_joined')) {
-                statusElement.style.opacity = '0.7';
+                statusElement.style.opacity = '0.5';
                 statusElement.style.fontSize = '0.75rem';
             }
-        }, 3000);
+        }, 2000);
+    } else {
+        // Reset opacity and font size for error/disconnected states
+        statusElement.style.opacity = '1';
+        statusElement.style.fontSize = '';
     }
 }
 
@@ -438,10 +464,8 @@ function showUserNotification(message, type = 'info') {
     console.log(`Notification: ${message}`);
 }
 
-// Auto-initialize WebSocket when DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-    initializeWebSocket();
-});
+// WebSocket will be initialized manually by project pages when needed
+// No automatic initialization to prevent multiple connections
 
 // Clean up WebSocket connection when page unloads
 window.addEventListener('beforeunload', () => {

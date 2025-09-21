@@ -13,6 +13,15 @@ class ProjectRealtimeManager {
     }
     
     init() {
+        // Only initialize if we don't already have a client
+        if (window.projectRealtime && window.projectRealtime.wsClient) {
+            console.log('WebSocket client already exists, reusing...');
+            this.wsClient = window.projectRealtime.wsClient;
+            this.setupEventHandlers();
+            this.isInitialized = true;
+            return;
+        }
+        
         // Initialize WebSocket client
         this.wsClient = initializeWebSocket();
         
@@ -24,13 +33,22 @@ class ProjectRealtimeManager {
         // Set up event handlers
         this.setupEventHandlers();
         
-        // Join project room when connected
+        // Join project room when connected - with timeout to prevent infinite loops
+        let attempts = 0;
+        const maxAttempts = 10;
+        
         const joinProject = () => {
+            if (attempts >= maxAttempts) {
+                console.error('Failed to join project after maximum attempts');
+                return;
+            }
+            
             if (this.wsClient.isWebSocketConnected()) {
                 this.wsClient.joinProject(this.projectId);
                 this.isInitialized = true;
             } else {
-                setTimeout(joinProject, 100);
+                attempts++;
+                setTimeout(joinProject, 500); // Longer delay
             }
         };
         
@@ -102,18 +120,31 @@ class ProjectRealtimeManager {
 
 // Global instance
 let projectRealtime = null;
+let isProjectRealtimeInitializing = false;
 
-// Initialize when DOM is loaded
+// Initialize when DOM is loaded - with protection against multiple initializations
 document.addEventListener('DOMContentLoaded', () => {
+    // Prevent multiple initializations
+    if (isProjectRealtimeInitializing || projectRealtime) {
+        console.log('Project realtime already initialized or initializing, skipping...');
+        return;
+    }
+    
     const projectElement = document.querySelector('[data-project-id]');
     if (projectElement) {
-        const projectId = parseInt(projectElement.dataset.projectId);
-        window.currentUserId = parseInt(document.body.dataset.userId || '0');
+        isProjectRealtimeInitializing = true;
         
-        projectRealtime = new ProjectRealtimeManager(projectId);
-        
-        // Make it globally accessible
-        window.projectRealtime = projectRealtime;
+        try {
+            const projectId = parseInt(projectElement.dataset.projectId);
+            window.currentUserId = parseInt(document.body.dataset.userId || '0');
+            
+            projectRealtime = new ProjectRealtimeManager(projectId);
+            
+            // Make it globally accessible
+            window.projectRealtime = projectRealtime;
+        } finally {
+            isProjectRealtimeInitializing = false;
+        }
     }
 });
 

@@ -1146,75 +1146,11 @@ def handle_leave_project(data):
     
     print(f"User {current_user.id} left project {project_id}")
 
-@socketio.on('task_update')
-def handle_task_update(data):
-    """Handle real-time task updates with optimized database queries"""
-    if not current_user.is_authenticated:
-        return
-    
-    project_id = data.get('project_id')
-    task_data = data.get('task_data')
-    update_type = data.get('update_type', 'task_update')
-    
-    if not project_id or not task_data:
-        emit('error', {'message': 'Project ID and task data are required'})
-        return
-    
-    # Optimized permission check - use filter_by for better performance
-    project = Project.query.filter_by(id=project_id).first()
-    if not project or not project.is_accessible_by(current_user.id):
-        emit('error', {'message': 'Access denied'})
-        return
-    
-    # Pre-build user data to avoid repeated database access
-    user_data = {
-        'id': current_user.id,
-        'name': current_user.name
-    }
-    
-    # Broadcast the update to all project collaborators
-    update_data = {
-        'task_data': task_data,
-        'user': user_data,
-        'update_type': update_type
-    }
-    
-    ws_handler.broadcast_update(project_id, 'task_update', update_data, exclude_user=current_user.id)
+# Real-time task updates removed to reduce server load
+# Only sharing and active user functionality remains
 
-@socketio.on('project_update')
-def handle_project_update(data):
-    """Handle real-time project updates with optimized database queries"""
-    if not current_user.is_authenticated:
-        return
-    
-    project_id = data.get('project_id')
-    project_data = data.get('project_data')
-    update_type = data.get('update_type', 'project_update')
-    
-    if not project_id or not project_data:
-        emit('error', {'message': 'Project ID and project data are required'})
-        return
-    
-    # Optimized permission check - use filter_by for better performance
-    project = Project.query.filter_by(id=project_id).first()
-    if not project or not project.is_accessible_by(current_user.id):
-        emit('error', {'message': 'Access denied'})
-        return
-    
-    # Pre-build user data to avoid repeated database access
-    user_data = {
-        'id': current_user.id,
-        'name': current_user.name
-    }
-    
-    # Broadcast the update to all project collaborators
-    update_data = {
-        'project_data': project_data,
-        'user': user_data,
-        'update_type': update_type
-    }
-    
-    ws_handler.broadcast_update(project_id, 'project_update', update_data, exclude_user=current_user.id)
+# Real-time project updates removed to reduce server load
+# Only sharing and active user functionality remains
 
 @socketio.on('get_active_users')
 def handle_get_active_users(data):

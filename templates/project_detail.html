@@ -42,19 +42,18 @@
         <div class="glass rounded-2xl p-4">
             <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-4">
-                    <div id="websocket-status" class="websocket-status connecting">
-                        🔄 Connecting to real-time updates...
+                    <div class="text-blue-400 text-sm font-medium">
+                        <i class="fas fa-user-tag mr-1"></i>
+                        Your role: <span class="text-white">{{ user_role|title }}</span>
                     </div>
                     <div class="text-gray-400 text-sm">
                         <i class="fas fa-users mr-1"></i>
-                        <span id="active-user-count">0</span> active
+                        <span id="active-user-count">1</span> active
                     </div>
-                    <button id="manual-reconnect-btn" 
-                            class="text-xs text-gray-500 hover:text-blue-400 px-2 py-1 rounded transition-colors"
-                            title="Force reconnect WebSocket"
-                            style="display: none;">
-                        <i class="fas fa-sync-alt"></i> Reconnect
-                    </button>
+                    <div id="connection-status" class="text-green-400 text-sm">
+                        <i class="fas fa-circle mr-1"></i>
+                        Online
+                    </div>
                 </div>
                 <div id="active-users" class="flex items-center space-x-2">
                     <!-- Active users will be populated by JavaScript -->
@@ -634,44 +633,15 @@
         box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
     }
 
-    /* Real-time Update Styles */
-    .websocket-status {
-        padding: 0.5rem 1rem;
-        border-radius: 0.5rem;
+    /* User Info Styles */
+    .connection-status {
         font-size: 0.875rem;
         font-weight: 500;
-        transition: all 0.3s ease;
     }
-
-    .websocket-status.connected {
-        background-color: rgba(34, 197, 94, 0.2);
-        color: #22c55e;
-        border: 1px solid rgba(34, 197, 94, 0.3);
-    }
-
-    .websocket-status.disconnected {
-        background-color: rgba(239, 68, 68, 0.2);
-        color: #ef4444;
-        border: 1px solid rgba(239, 68, 68, 0.3);
-    }
-
-    .websocket-status.connecting {
-        background-color: rgba(234, 179, 8, 0.2);
-        color: #eab308;
-        border: 1px solid rgba(234, 179, 8, 0.3);
-    }
-
-    .websocket-status.error {
-        background-color: rgba(239, 68, 68, 0.2);
-        color: #ef4444;
-        border: 1px solid rgba(239, 68, 68, 0.3);
+    
+    .connection-status i {
+        font-size: 0.5rem;
         animation: pulse 2s infinite;
-    }
-
-    .websocket-status.project_joined {
-        background-color: rgba(34, 197, 94, 0.2);
-        color: #22c55e;
-        border: 1px solid rgba(34, 197, 94, 0.3);
     }
 
     /* Active Users Styling */
@@ -1579,7 +1549,31 @@
     // Initialize Activity Log Manager
     window.activityLogManager = new ActivityLogManager();
     
-    // WebSocket functionality temporarily disabled to prevent request flood
-    console.log('WebSocket initialization disabled to prevent excessive requests');
+    // Simple user info management without WebSocket
+    function updateUserInfo() {
+        // Set initial active user count to 1 (current user)
+        const activeUserCount = document.getElementById('active-user-count');
+        if (activeUserCount) {
+            activeUserCount.textContent = '1';
+        }
+        
+        // Update active users display
+        const activeUsersContainer = document.getElementById('active-users');
+        if (activeUsersContainer) {
+            activeUsersContainer.innerHTML = `
+                <div class="active-user" title="You are currently viewing this project">
+                    <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-semibold">
+                        {{ current_user.name[0]|upper }}
+                    </div>
+                </div>
+            `;
+        }
+    }
+    
+    // Initialize user info on page load
+    updateUserInfo();
+    
+    // Optional: Update every 30 seconds (much less frequent than WebSocket)
+    setInterval(updateUserInfo, 30000);
 </script>
 {% endblock %}

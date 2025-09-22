@@ -17,8 +17,8 @@ gunicorn==22.0.0
 # Removed pyodbc and pymssql - using PostgreSQL only for Azure compatibility
 email-validator==2.1.1
 azure-communication-email==1.0.0
-Flask-SocketIO==5.3.6
-python-socketio==5.11.0
+# Flask-SocketIO==5.3.6 - removed, using simple HTTP requests instead
+# python-socketio==5.11.0 - removed, using simple HTTP requests instead
 bleach==6.1.0
 
 # Azure-specific requirements

@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-from flask_socketio import SocketIO, emit, join_room, leave_room, disconnect
+# SocketIO removed - using simple HTTP requests instead
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import os
@@ -261,38 +261,8 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # Initialize extensions
 db = SQLAlchemy(app)
 
-# Initialize SocketIO with Azure-compatible configuration
-try:
-    from azure_websocket_config import get_azure_socketio_kwargs, configure_azure_headers
-    
-    # Configure Azure-specific headers
-    app = configure_azure_headers(app)
-    
-    # Try to get Azure SignalR configuration
-    signalr_config = app.config.get('AZURE_SIGNALR_CONFIG')
-    if signalr_config and signalr_config.enabled:
-        from services.azure_signalr_service import create_signalr_service
-        azure_signalr = create_signalr_service()
-        socketio_config = azure_signalr.get_flask_socketio_config()
-        socketio = SocketIO(app, **socketio_config)
-        print("SocketIO configured with Azure SignalR Service")
-    else:
-        # Use Azure-optimized WebSocket configuration
-        azure_kwargs = get_azure_socketio_kwargs()
-        socketio = SocketIO(app, **azure_kwargs)
-        print("SocketIO configured with Azure-optimized WebSocket fallback")
-        
-except Exception as e:
-    print(f"Error configuring SocketIO: {e}")
-    # Fallback configuration
-    socketio = SocketIO(app, 
-                       cors_allowed_origins="*",
-                       async_mode='threading',
-                       transports=['polling', 'websocket'],
-                       ping_timeout=60,
-                       ping_interval=25,
-                       logger=True, 
-                       engineio_logger=False)
+# SocketIO removed - app uses simple HTTP requests for better performance
+print("SocketIO removed - using lightweight HTTP-based communication")
 
 # Database Models
 class User(UserMixin, db.Model):
@@ -712,18 +682,7 @@ github = oauth.register(
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
-# WebSocket Handler for Real-time Collaboration
-class ProjectWebSocketHandler:
-    def __init__(self):
-        self.active_connections = {}  # {user_id: {project_id: session_id}}
-        self.project_rooms = {}       # {project_id: set(user_ids)}
-        
-        # Connection pooling and caching for better performance
-        self.connection_cache = {}    # Cache for frequently accessed data
-        self.cache_ttl = 300         # 5 minutes cache TTL
-        self.last_cache_cleanup = datetime.utcnow()
-    
-    def _get_cached_data(self, key):
+# WebSocket Handler removed - using simple HTTP requests instead
         """Get data from cache if not expired"""
         if key in self.connection_cache:
             data, timestamp = self.connection_cache[key]
@@ -1014,25 +973,15 @@ class ProjectWebSocketHandler:
             return []
 
 # Initialize WebSocket handler
-ws_handler = ProjectWebSocketHandler()
+# ws_handler = ProjectWebSocketHandler() - removed
 
 # Initialize Azure services
-azure_signalr_service = None
 azure_communication_service = None
 azure_service_bus_service = None
 
 try:
-    from services.azure_signalr_service import create_signalr_service
     from services.azure_communication_service import create_communication_service
     from services.azure_service_bus_service import AzureServiceBusService
-    
-    # Initialize Azure SignalR Service
-    azure_signalr_service = create_signalr_service()
-    if azure_signalr_service.is_available():
-        azure_signalr_service.set_fallback_handler(ws_handler)
-        print("Azure SignalR Service initialized successfully")
-    else:
-        print("Azure SignalR Service not available, using local WebSocket fallback")
     
     # Initialize Azure Communication Services
     azure_communication_service = create_communication_service()
@@ -1049,7 +998,6 @@ try:
         print("Azure Service Bus not available, using in-memory fallback")
     
     # Store services in app context for use in routes
-    app.azure_signalr_service = azure_signalr_service
     app.azure_communication_service = azure_communication_service
     app.azure_service_bus_service = azure_service_bus_service
     
@@ -1058,204 +1006,7 @@ except ImportError as e:
 except Exception as e:
     print(f"Error initializing Azure services: {e}")
 
-# SocketIO Event Handlers
-@socketio.on('connect')
-def handle_connect(auth):
-    """Handle client connection"""
-    try:
-        if not current_user.is_authenticated:
-            print("Socket.IO connection rejected: User not authenticated")
-            disconnect()
-            return False
-        
-        # Clean up any existing sessions for this user first
-        if current_user.id in ws_handler.active_connections:
-            total_sessions = sum(len(projects) for projects in ws_handler.active_connections[current_user.id].values())
-            if total_sessions > 0:
-                print(f"User {current_user.id} has {total_sessions} existing sessions, cleaning up")
-                ws_handler._cleanup_stale_user_sessions(current_user.id)
-        
-        print(f"User {current_user.id} ({current_user.name}) connected with session {request.sid}")
-        return True
-    except Exception as e:
-        print(f"Socket.IO connection error: {str(e)}")
-        disconnect()
-        return False
-
-@socketio.on('disconnect')
-def handle_disconnect():
-    """Handle client disconnection"""
-    try:
-        if current_user.is_authenticated:
-            print(f"User {current_user.id} ({current_user.name}) disconnected")
-            
-            # Clean up all project connections for this user
-            if current_user.id in ws_handler.active_connections:
-                project_ids = list(ws_handler.active_connections[current_user.id].keys())
-                for project_id in project_ids:
-                    ws_handler.disconnect(current_user.id, project_id)
-    except Exception as e:
-        print(f"Socket.IO disconnect error: {str(e)}")
-
-@socketio.on('join_project')
-def handle_join_project(data):
-    """Handle user joining a project room"""
-    if not current_user.is_authenticated:
-        return
-    
-    project_id = data.get('project_id')
-    if not project_id:
-        emit('error', {'message': 'Project ID is required'})
-        return
-    
-    # Verify access and connect
-    if ws_handler.connect(current_user.id, project_id, request.sid):
-        join_room(f"project_{project_id}")
-        
-        # Send current active users to the newly connected user
-        active_users = ws_handler.get_active_users(project_id)
-        emit('active_users', {'users': active_users})
-        
-        # Send confirmation
-        emit('joined_project', {
-            'project_id': project_id,
-            'message': 'Successfully joined project'
-        })
-        
-        print(f"User {current_user.id} joined project {project_id}")
-    else:
-        emit('error', {'message': 'Access denied or project not found'})
-
-@socketio.on('leave_project')
-def handle_leave_project(data):
-    """Handle user leaving a project room"""
-    if not current_user.is_authenticated:
-        return
-    
-    project_id = data.get('project_id')
-    if not project_id:
-        return
-    
-    leave_room(f"project_{project_id}")
-    ws_handler.disconnect(current_user.id, project_id)
-    
-    emit('left_project', {
-        'project_id': project_id,
-        'message': 'Successfully left project'
-    })
-    
-    print(f"User {current_user.id} left project {project_id}")
-
-# Real-time task updates removed to reduce server load
-# Only sharing and active user functionality remains
-
-# Real-time project updates removed to reduce server load
-# Only sharing and active user functionality remains
-
-@socketio.on('get_active_users')
-def handle_get_active_users(data):
-    """Get active users for a project"""
-    if not current_user.is_authenticated:
-        return
-    
-    project_id = data.get('project_id')
-    if not project_id:
-        emit('error', {'message': 'Project ID is required'})
-        return
-    
-    # Verify access
-    project = Project.query.get(project_id)
-    if not project or not project.is_accessible_by(current_user.id):
-        emit('error', {'message': 'Access denied'})
-        return
-    
-    active_users = ws_handler.get_active_users(project_id)
-    emit('active_users', {'users': active_users})
-
-@socketio.on('sync_state')
-def handle_sync_state(data):
-    """Synchronize state after reconnection"""
-    if not current_user.is_authenticated:
-        return
-    
-    project_id = data.get('project_id')
-    last_sync = data.get('last_sync')
-    
-    if not project_id:
-        emit('error', {'message': 'Project ID is required'})
-        return
-    
-    # Verify access
-    project = Project.query.get(project_id)
-    if not project or not project.is_accessible_by(current_user.id):
-        emit('error', {'message': 'Access denied'})
-        return
-    
-    try:
-        # Get recent activity since last sync
-        if last_sync:
-            sync_time = datetime.fromisoformat(last_sync.replace('Z', '+00:00'))
-            recent_activities = SharingActivityLog.query.filter(
-                SharingActivityLog.project_id == project_id,
-                SharingActivityLog.created_at > sync_time,
-                SharingActivityLog.action.in_(['task_created', 'task_updated', 'task_deleted', 'project_updated'])
-            ).order_by(SharingActivityLog.created_at.desc()).limit(50).all()
-            
-            # Send recent updates
-            for activity in reversed(recent_activities):  # Send in chronological order
-                if activity.action in ['task_created', 'task_updated', 'task_deleted']:
-                    # Get current task data if it still exists
-                    if activity.action != 'task_deleted':
-                        task = Task.query.filter_by(project_id=project_id).filter(
-                            Task.title.contains(activity.details.split("'")[1]) if "'" in activity.details else False
-                        ).first()
-                        
-                        if task:
-                            task_data = {
-                                'id': task.id,
-                                'title': task.title,
-                                'description': task.description,
-                                'status': task.status,
-                                'priority': task.priority,
-                                'size': task.size,
-                                'owner_id': task.owner_id,
-                                'owner_name': task.owner.name,
-                                'start_date': task.start_date.isoformat() if task.start_date else None,
-                                'end_date': task.end_date.isoformat() if task.end_date else None,
-                                'parent_id': task.parent_id,
-                                'risk_level': task.risk_level,
-                                'created_at': task.created_at.isoformat(),
-                                'updated_at': task.updated_at.isoformat()
-                            }
-                            
-                            emit('project_update', {
-                                'type': 'task_update',
-                                'data': {
-                                    'task_data': task_data,
-                                    'user': {
-                                        'id': activity.user_id,
-                                        'name': activity.user.name if activity.user else 'Unknown'
-                                    },
-                                    'update_type': activity.action.replace('_', '_').replace('created', 'create').replace('updated', 'update').replace('deleted', 'delete')
-                                },
-                                'timestamp': activity.created_at.isoformat(),
-                                'project_id': project_id,
-                                'is_sync': True
-                            })
-        
-        # Send current active users
-        active_users = ws_handler.get_active_users(project_id)
-        emit('active_users', {'users': active_users})
-        
-        # Confirm sync completion
-        emit('sync_complete', {
-            'project_id': project_id,
-            'timestamp': datetime.utcnow().isoformat()
-        })
-        
-    except Exception as e:
-        print(f"Error in sync_state: {e}")
-        emit('error', {'message': 'Failed to synchronize state'})
+# SocketIO handlers removed - using simple HTTP requests instead
 
 # Routes
 @app.route('/')
@@ -1756,14 +1507,7 @@ def edit_project(id):
             'updated_at': project.updated_at.isoformat()
         }
         
-        ws_handler.broadcast_update(id, 'project_update', {
-            'project_data': project_data,
-            'user': {
-                'id': current_user.id,
-                'name': current_user.name
-            },
-            'update_type': 'project_update'
-        })
+        # WebSocket broadcast removed - using simple HTTP requests instead
         
         flash('Project updated successfully')
         return redirect(url_for('view_project', id=id))
@@ -1872,14 +1616,7 @@ def new_task(project_id):
             'updated_at': task.updated_at.isoformat()
         }
         
-        ws_handler.broadcast_update(project_id, 'task_update', {
-            'task_data': task_data,
-            'user': {
-                'id': current_user.id,
-                'name': current_user.name
-            },
-            'update_type': 'task_create'
-        })
+        # WebSocket broadcast removed - using simple HTTP requests instead
         
         flash('Task created successfully')
         return redirect(url_for('view_project', id=project_id))
@@ -1954,14 +1691,7 @@ def edit_task(project_id, task_id):
             'updated_at': task.updated_at.isoformat()
         }
         
-        ws_handler.broadcast_update(project_id, 'task_update', {
-            'task_data': task_data,
-            'user': {
-                'id': current_user.id,
-                'name': current_user.name
-            },
-            'update_type': 'task_update'
-        })
+        # WebSocket broadcast removed - using simple HTTP requests instead
         
         flash('Task updated successfully')
         return redirect(url_for('view_project', id=project_id))
@@ -2001,14 +1731,7 @@ def delete_task(project_id, task_id):
         'title': task_title
     }
     
-    ws_handler.broadcast_update(project_id, 'task_update', {
-        'task_data': task_data,
-        'user': {
-            'id': current_user.id,
-            'name': current_user.name
-        },
-        'update_type': 'task_delete'
-    })
+    # WebSocket broadcast removed - using simple HTTP requests instead
     
     db.session.delete(task)
     db.session.commit()
@@ -3652,15 +3375,8 @@ def health_check():
         except Exception as e:
             health_status['services']['azure'] = f'error: {str(e)}'
         
-        # Check WebSocket handler
-        try:
-            if ws_handler:
-                active_connections = len(ws_handler.active_connections)
-                health_status['services']['websocket'] = f'healthy (connections: {active_connections})'
-            else:
-                health_status['services']['websocket'] = 'not_initialized'
-        except Exception as e:
-            health_status['services']['websocket'] = f'error: {str(e)}'
+        # WebSocket handler removed - using simple HTTP requests instead
+        health_status['services']['websocket'] = 'disabled'
         
         # Determine overall status
         unhealthy_services = [k for k, v in health_status['services'].items() 
@@ -3720,6 +3436,6 @@ def create_tables():
 
 if __name__ == '__main__':
     create_tables()
-    # Use SocketIO run instead of app.run for WebSocket support
+    # Use standard Flask run - SocketIO removed
     port = int(os.environ.get('PORT', 5000))
-    socketio.run(app, debug=True, host='0.0.0.0', port=port)
+    app.run(debug=True, host='0.0.0.0', port=port)

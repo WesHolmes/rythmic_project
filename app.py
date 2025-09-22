@@ -1126,6 +1126,8 @@ def view_project(id):
         'can_create_tasks': PermissionManager.has_permission(current_user.id, id, 'create_tasks'),
         'can_delete_project': PermissionManager.has_permission(current_user.id, id, 'delete_project'),
         'can_manage_collaborators': PermissionManager.has_permission(current_user.id, id, 'manage_collaborators'),
+        'can_view_collaborators': True,  # All roles can view collaborators
+        'can_manage_share_links': project.owner_id == current_user.id,  # Only owner can manage share links
         'is_owner': project.owner_id == current_user.id
     }
     
@@ -2290,6 +2292,9 @@ def get_project_collaborators(id):
         
         project = Project.query.get_or_404(id)
         
+        # Check if user can manage collaborators (for role changes, etc.)
+        can_manage = PermissionManager.can_manage_collaborators(project, current_user.id)
+        
         # Get all accepted collaborators
         collaborators = ProjectCollaborator.query.filter_by(
             project_id=id,
@@ -2303,8 +2308,8 @@ def get_project_collaborators(id):
         owner_data = {
             'id': None,  # No collaborator record for owner
             'user_id': project.owner_id,
-            'user_name': project.owner.name,
-            'user_email': project.owner.email,
+            'name': project.owner.name,
+            'email': project.owner.email,
             'role': 'owner',
             'status': 'accepted',
             'invited_at': project.created_at.isoformat(),
@@ -2319,8 +2324,8 @@ def get_project_collaborators(id):
             collab_data = {
                 'id': collab.id,
                 'user_id': collab.user_id,
-                'user_name': collab.user.name,
-                'user_email': collab.user.email,
+                'name': collab.user.name,  # Changed from user_name to name
+                'email': collab.user.email,  # Changed from user_email to email
                 'role': collab.role,
                 'status': collab.status,
                 'invited_at': collab.invited_at.isoformat(),
@@ -2335,7 +2340,9 @@ def get_project_collaborators(id):
             'project_id': id,
             'project_name': project.name,
             'collaborators': collaborator_data,
-            'total_count': len(collaborator_data)
+            'total_count': len(collaborator_data),
+            'can_manage_collaborators': can_manage,
+            'can_manage_share_links': project.owner_id == current_user.id
         })
     
     except Exception as e:

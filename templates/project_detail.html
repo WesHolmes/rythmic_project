@@ -74,10 +74,15 @@
                         <i class="fas fa-tags mr-2"></i>Manage Labels
                     </button>
                     {% endif %}
-                    {% if user_permissions.can_manage_collaborators %}
+                    {% if user_permissions.can_view_collaborators %}
                     <button id="manage-collaborators-btn"
                         class="text-blue-400 hover:text-blue-300 px-3 py-1.5 rounded-lg hover:bg-blue-500/10 transition-all duration-200 text-sm">
-                        <i class="fas fa-users mr-2"></i>Collaborators ({{ collaborators|length + 1 }})
+                        <i class="fas fa-users mr-2"></i>
+                        {% if user_permissions.can_manage_collaborators %}
+                            Manage Collaborators ({{ collaborators|length + 1 }})
+                        {% else %}
+                            View Collaborators ({{ collaborators|length + 1 }})
+                        {% endif %}
                     </button>
                     {% endif %}
                 </div>
@@ -1544,7 +1549,11 @@
     }
 
     // Initialize Sharing Manager
-    window.sharingManager = new SharingManager({{ project.id }});
+    window.sharingManager = new SharingManager({{ project.id }}, {
+        can_manage_collaborators: {{ user_permissions.can_manage_collaborators|lower }},
+        can_manage_share_links: {{ user_permissions.can_manage_share_links|lower }},
+        can_view_collaborators: {{ user_permissions.can_view_collaborators|lower }}
+    });
     
     // Initialize Activity Log Manager
     window.activityLogManager = new ActivityLogManager();

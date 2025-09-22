@@ -1,7 +1,8 @@
 // Sharing Management JavaScript
 class SharingManager {
-    constructor(projectId) {
+    constructor(projectId, userPermissions = {}) {
         this.projectId = projectId;
+        this.userPermissions = userPermissions;
         this.currentCollaborators = [];
         this.currentTokens = [];
         this.currentActivity = [];
@@ -118,8 +119,53 @@ class SharingManager {
         const modal = document.getElementById('collaborator-modal');
         if (modal) {
             modal.classList.remove('hidden');
+            this.updateModalForUserRole();
             this.loadCollaborators();
-            this.loadSharingTokens();
+            if (this.userPermissions.can_manage_share_links) {
+                this.loadSharingTokens();
+            }
+        }
+    }
+
+    updateModalForUserRole() {
+        const modal = document.getElementById('collaborator-modal');
+        if (!modal) return;
+
+        // Update modal title
+        const titleElement = document.getElementById('collaborators-modal-title');
+        if (titleElement) {
+            titleElement.textContent = this.userPermissions.can_manage_collaborators ? 
+                'Manage Collaborators' : 'View Collaborators';
+        }
+
+        // Show/hide readonly notice
+        const readonlyNotice = document.getElementById('collaborators-readonly-notice');
+        if (readonlyNotice) {
+            if (this.userPermissions.can_manage_collaborators) {
+                readonlyNotice.classList.add('hidden');
+            } else {
+                readonlyNotice.classList.remove('hidden');
+            }
+        }
+
+        // Show/hide sharing links section
+        const sharingSection = document.getElementById('sharing-links-section');
+        if (sharingSection) {
+            if (this.userPermissions.can_manage_share_links) {
+                sharingSection.classList.remove('hidden');
+            } else {
+                sharingSection.classList.add('hidden');
+            }
+        }
+
+        // Show/hide invite button
+        const inviteBtn = document.getElementById('invite-collaborator-btn');
+        if (inviteBtn) {
+            if (this.userPermissions.can_manage_collaborators) {
+                inviteBtn.classList.remove('hidden');
+            } else {
+                inviteBtn.classList.add('hidden');
+            }
         }
     }
 
@@ -364,6 +410,13 @@ class SharingManager {
 
             if (response.ok) {
                 this.currentCollaborators = result.collaborators || [];
+                // Update permissions from API response
+                if (result.can_manage_collaborators !== undefined) {
+                    this.userPermissions.can_manage_collaborators = result.can_manage_collaborators;
+                }
+                if (result.can_manage_share_links !== undefined) {
+                    this.userPermissions.can_manage_share_links = result.can_manage_share_links;
+                }
                 this.renderCollaborators();
             } else {
                 this.showNotification(result.error || 'Failed to load collaborators', 'error');
@@ -408,14 +461,14 @@ class SharingManager {
         item.innerHTML = `
             <div class="flex items-center space-x-4">
                 <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                    <span class="text-white font-semibold text-sm">${collaborator.name.charAt(0).toUpperCase()}</span>
+                    <span class="text-white font-semibold text-sm">${(collaborator.name || 'U').charAt(0).toUpperCase()}</span>
                 </div>
                 <div>
-                    <h4 class="text-white font-medium">${collaborator.name}</h4>
-                    <p class="text-gray-400 text-sm">${collaborator.email}</p>
+                    <h4 class="text-white font-medium">${collaborator.name || 'Unknown'}</h4>
+                    <p class="text-gray-400 text-sm">${collaborator.email || 'No email'}</p>
                     <div class="flex items-center space-x-2 mt-1">
                         <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${roleColor}">
-                            <i class="${roleIcon} mr-1"></i>${collaborator.role.charAt(0).toUpperCase() + collaborator.role.slice(1)}
+                            <i class="${roleIcon} mr-1"></i>${(collaborator.role || 'viewer').charAt(0).toUpperCase() + (collaborator.role || 'viewer').slice(1)}
                         </span>
                         <span class="text-xs text-gray-500">
                             ${collaborator.status === 'pending' ? 'Invitation pending' : `Joined ${this.formatDate(collaborator.accepted_at)}`}
@@ -424,17 +477,21 @@ class SharingManager {
                 </div>
             </div>
             <div class="flex items-center space-x-2">
-                ${collaborator.role !== 'owner' ? `
-                    <select class="role-select px-3 py-1 bg-gray-700 border border-gray-600 rounded text-white text-sm" 
-                            data-user-id="${collaborator.user_id}" data-current-role="${collaborator.role}">
-                        <option value="viewer" ${collaborator.role === 'viewer' ? 'selected' : ''}>Viewer</option>
-                        <option value="editor" ${collaborator.role === 'editor' ? 'selected' : ''}>Editor</option>
-                        <option value="admin" ${collaborator.role === 'admin' ? 'selected' : ''}>Admin</option>
-                    </select>
-                    <button class="remove-collaborator-btn text-red-400 hover:text-red-300 p-2 rounded-lg hover:bg-red-500/10 transition-colors"
-                            data-user-id="${collaborator.user_id}" data-user-name="${collaborator.name}">
-                        <i class="fas fa-user-times"></i>
-                    </button>
+                ${(collaborator.role || 'viewer') !== 'owner' ? `
+                    ${this.userPermissions.can_manage_collaborators ? `
+                        <select class="role-select px-3 py-1 bg-gray-700 border border-gray-600 rounded text-white text-sm" 
+                                data-user-id="${collaborator.user_id || ''}" data-current-role="${collaborator.role || 'viewer'}">
+                            <option value="viewer" ${(collaborator.role || 'viewer') === 'viewer' ? 'selected' : ''}>Viewer</option>
+                            <option value="editor" ${(collaborator.role || 'viewer') === 'editor' ? 'selected' : ''}>Editor</option>
+                            <option value="admin" ${(collaborator.role || 'viewer') === 'admin' ? 'selected' : ''}>Admin</option>
+                        </select>
+                        <button class="remove-collaborator-btn text-red-400 hover:text-red-300 p-2 rounded-lg hover:bg-red-500/10 transition-colors"
+                                data-user-id="${collaborator.user_id || ''}" data-user-name="${collaborator.name || 'Unknown'}">
+                            <i class="fas fa-user-times"></i>
+                        </button>
+                    ` : `
+                        <span class="text-xs text-gray-500 px-3 py-1">${(collaborator.role || 'viewer').charAt(0).toUpperCase() + (collaborator.role || 'viewer').slice(1)}</span>
+                    `}
                 ` : `
                     <span class="text-xs text-gray-500 px-3 py-1">Project Owner</span>
                 `}

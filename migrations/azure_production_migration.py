@@ -49,6 +49,10 @@ class AzureProductionMigration:
                 if not self._create_tables(db):
                     return False
                 
+                # Step 2.5: Run task assignment migration
+                if not self._run_task_assignment_migration(db):
+                    return False
+                
                 # Step 3: Create optimized indexes
                 if not self._create_indexes(db.engine):
                     return False
@@ -189,6 +193,116 @@ class AzureProductionMigration:
         except Exception as e:
             logger.error(f"Table creation failed: {e}")
             return False
+    
+    def _run_task_assignment_migration(self, db) -> bool:
+        """Run task assignment migration to add new fields"""
+        try:
+            logger.info("Running task assignment migration...")
+            
+            from sqlalchemy import inspect, text
+            
+            # Check if the columns already exist
+            inspector = inspect(db.engine)
+            columns = [col['name'] for col in inspector.get_columns('task')]
+            
+            new_columns = ['assigned_to', 'assigned_by', 'assigned_at']
+            existing_columns = [col for col in new_columns if col in columns]
+            
+            if existing_columns:
+                logger.info(f"Task assignment columns already exist: {existing_columns}")
+                self._log_step(f"Task assignment columns already exist: {existing_columns}")
+                return True
+            
+            columns_to_add = [col for col in new_columns if col not in columns]
+            
+            if not columns_to_add:
+                logger.info("All task assignment columns already exist. Migration not needed.")
+                self._log_step("All task assignment columns already exist")
+                return True
+            
+            # Add the new columns
+            with db.engine.connect() as conn:
+                # Add assigned_to column
+                if 'assigned_to' not in columns:
+                    conn.execute(text("""
+                        ALTER TABLE task 
+                        ADD COLUMN assigned_to INTEGER REFERENCES user(id)
+                    """))
+                    logger.info("✓ Added 'assigned_to' column")
+                
+                # Add assigned_by column
+                if 'assigned_by' not in columns:
+                    conn.execute(text("""
+                        ALTER TABLE task 
+                        ADD COLUMN assigned_by INTEGER REFERENCES user(id)
+                    """))
+                    logger.info("✓ Added 'assigned_by' column")
+                
+                # Add assigned_at column
+                if 'assigned_at' not in columns:
+                    conn.execute(text("""
+                        ALTER TABLE task 
+                        ADD COLUMN assigned_at DATETIME
+                    """))
+                    logger.info("✓ Added 'assigned_at' column")
+                
+                conn.commit()
+            
+            # Verify columns were added
+            inspector = inspect(db.engine)
+            updated_columns = [col['name'] for col in inspector.get_columns('task')]
+            
+            added_columns = [col for col in new_columns if col in updated_columns]
+            
+            if len(added_columns) == len(columns_to_add):
+                logger.info(f"✓ Task assignment migration completed! Added {len(added_columns)} columns.")
+                self._log_step(f"Added task assignment columns: {added_columns}")
+                
+                # Add indexes for performance
+                self._add_task_assignment_indexes(db.engine)
+                
+                return True
+            else:
+                logger.error(f"Task assignment migration partially failed. Added {len(added_columns)}/{len(columns_to_add)} columns.")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Task assignment migration failed: {str(e)}")
+            return False
+    
+    def _add_task_assignment_indexes(self, engine):
+        """Add database indexes for task assignment queries"""
+        try:
+            from sqlalchemy import text
+            
+            # Index for task assignment lookups
+            with engine.connect() as conn:
+                conn.execute(text("""
+                    CREATE INDEX IF NOT EXISTS idx_task_assigned_to 
+                    ON task(assigned_to)
+                """))
+                
+                conn.execute(text("""
+                    CREATE INDEX IF NOT EXISTS idx_task_assigned_by 
+                    ON task(assigned_by)
+                """))
+                
+                conn.execute(text("""
+                    CREATE INDEX IF NOT EXISTS idx_task_assigned_at 
+                    ON task(assigned_at)
+                """))
+                
+                conn.execute(text("""
+                    CREATE INDEX IF NOT EXISTS idx_task_project_assigned 
+                    ON task(project_id, assigned_to)
+                """))
+                
+                conn.commit()
+            
+            logger.info("✓ Task assignment indexes created successfully")
+            
+        except Exception as e:
+            logger.warning(f"Some task assignment indexes may not have been created: {str(e)}")
     
     def _create_indexes(self, engine) -> bool:
         """Create optimized indexes for Azure database"""

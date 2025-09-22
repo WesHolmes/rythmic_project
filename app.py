@@ -442,6 +442,17 @@ class Task(db.Model):
     # Dependency relationships
     dependencies = db.relationship('TaskDependency', foreign_keys='TaskDependency.task_id', back_populates='task')
     dependents = db.relationship('TaskDependency', foreign_keys='TaskDependency.depends_on_id', back_populates='depends_on')
+    
+    @classmethod
+    def has_assignment_fields(cls):
+        """Check if task assignment fields are available in the database"""
+        try:
+            from sqlalchemy import inspect
+            inspector = inspect(db.engine)
+            columns = [col['name'] for col in inspector.get_columns('task')]
+            return all(field in columns for field in ['assigned_to', 'assigned_by', 'assigned_at'])
+        except Exception:
+            return False
 
 # Sharing Models
 class ProjectCollaborator(db.Model):
@@ -1285,13 +1296,15 @@ def new_task(project_id):
         # Get the next sort order for this project
         max_sort_order = db.session.query(db.func.max(Task.sort_order)).filter_by(project_id=project_id).scalar() or 0
         
-        # Handle task assignment
+        # Handle task assignment (only if fields are available)
         assigned_to_id = request.form.get('assigned_to')
         assigned_to = None
         assigned_by = None
         assigned_at = None
         
-        if assigned_to_id and PermissionManager.has_permission(current_user.id, project_id, 'assign_tasks'):
+        if (assigned_to_id and 
+            Task.has_assignment_fields() and 
+            PermissionManager.has_permission(current_user.id, project_id, 'assign_tasks')):
             # Verify the user is a collaborator
             if project.has_collaborator(int(assigned_to_id)):
                 assigned_to = int(assigned_to_id)
@@ -1366,9 +1379,10 @@ def new_task(project_id):
     tasks = Task.query.filter_by(project_id=project_id).all()
     labels = Label.query.filter_by(project_id=project_id).all()
     
-    # Get collaborators for assignment
+    # Get collaborators for assignment (only if assignment fields are available)
     collaborators = []
-    if PermissionManager.has_permission(current_user.id, project_id, 'assign_tasks'):
+    if (Task.has_assignment_fields() and 
+        PermissionManager.has_permission(current_user.id, project_id, 'assign_tasks')):
         # Add owner
         owner = User.query.get(project.owner_id)
         if owner:
@@ -1390,7 +1404,8 @@ def new_task(project_id):
     
     # Get user permissions
     user_permissions = {
-        'can_assign_tasks': PermissionManager.has_permission(current_user.id, project_id, 'assign_tasks')
+        'can_assign_tasks': (Task.has_assignment_fields() and 
+                           PermissionManager.has_permission(current_user.id, project_id, 'assign_tasks'))
     }
     
     return render_template('new_task.html', project=project, tasks=tasks, labels=labels, collaborators=collaborators, user_permissions=user_permissions)
@@ -1422,9 +1437,10 @@ def edit_task(project_id, task_id):
         task.mitigation_plan = request.form.get('mitigation_plan', '')
         task.updated_at = datetime.utcnow()
         
-        # Handle task assignment
+        # Handle task assignment (only if fields are available)
         assigned_to_id = request.form.get('assigned_to')
-        if PermissionManager.has_permission(current_user.id, project_id, 'assign_tasks'):
+        if (Task.has_assignment_fields() and 
+            PermissionManager.has_permission(current_user.id, project_id, 'assign_tasks')):
             if assigned_to_id and project.has_collaborator(int(assigned_to_id)):
                 task.assigned_to = int(assigned_to_id)
                 task.assigned_by = current_user.id
@@ -1480,9 +1496,10 @@ def edit_task(project_id, task_id):
     tasks = Task.query.filter_by(project_id=project_id).filter(Task.id != task_id).all()
     labels = Label.query.filter_by(project_id=project_id).all()
     
-    # Get collaborators for assignment
+    # Get collaborators for assignment (only if assignment fields are available)
     collaborators = []
-    if PermissionManager.has_permission(current_user.id, project_id, 'assign_tasks'):
+    if (Task.has_assignment_fields() and 
+        PermissionManager.has_permission(current_user.id, project_id, 'assign_tasks')):
         # Add owner
         owner = User.query.get(project.owner_id)
         if owner:
@@ -1504,7 +1521,8 @@ def edit_task(project_id, task_id):
     
     # Get user permissions
     user_permissions = {
-        'can_assign_tasks': PermissionManager.has_permission(current_user.id, project_id, 'assign_tasks')
+        'can_assign_tasks': (Task.has_assignment_fields() and 
+                           PermissionManager.has_permission(current_user.id, project_id, 'assign_tasks'))
     }
     
     return render_template('edit_task.html', project=project, task=task, tasks=tasks, labels=labels, collaborators=collaborators, user_permissions=user_permissions)
@@ -2128,6 +2146,10 @@ def assign_task(project_id, task_id):
     from services.permission_manager import PermissionManager
     
     try:
+        # Check if task assignment fields are available
+        if not Task.has_assignment_fields():
+            return jsonify({'error': 'Task assignment feature not available yet. Please try again later.'}), 503
+        
         project = Project.query.get_or_404(project_id)
         task = Task.query.get_or_404(task_id)
         
@@ -2178,6 +2200,10 @@ def unassign_task(project_id, task_id):
     from services.permission_manager import PermissionManager
     
     try:
+        # Check if task assignment fields are available
+        if not Task.has_assignment_fields():
+            return jsonify({'error': 'Task assignment feature not available yet. Please try again later.'}), 503
+        
         project = Project.query.get_or_404(project_id)
         task = Task.query.get_or_404(task_id)
         

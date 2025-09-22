@@ -424,11 +424,18 @@ class Task(db.Model):
     mitigation_plan = db.Column(db.Text)  # Plan to mitigate identified risks
     is_expanded = db.Column(db.Boolean, default=True)  # For hierarchy view
     
+    # Task Assignment Fields
+    assigned_to = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # User assigned to this task
+    assigned_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # User who assigned this task
+    assigned_at = db.Column(db.DateTime, nullable=True)  # When the task was assigned
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
-    owner = db.relationship('User', backref='tasks')
+    owner = db.relationship('User', backref='tasks', foreign_keys=[owner_id])
+    assigned_user = db.relationship('User', foreign_keys=[assigned_to], backref='assigned_tasks')
+    assigner = db.relationship('User', foreign_keys=[assigned_by], backref='assigned_tasks_by_me')
     children = db.relationship('Task', backref=db.backref('parent', remote_side=[id]), lazy=True)
     labels = db.relationship('Label', secondary='task_labels', back_populates='tasks')
     
@@ -443,7 +450,7 @@ class ProjectCollaborator(db.Model):
     # Role definitions with permissions
     ROLES = {
         'owner': {'level': 4, 'permissions': ['all']},
-        'admin': {'level': 3, 'permissions': ['edit_project', 'manage_collaborators', 'edit_tasks']},
+        'admin': {'level': 3, 'permissions': ['edit_project', 'manage_collaborators', 'edit_tasks', 'assign_tasks']},
         'editor': {'level': 2, 'permissions': ['edit_tasks', 'create_tasks']},
         'viewer': {'level': 1, 'permissions': ['view_only']}
     }
@@ -734,7 +741,7 @@ def login():
         password = request.form['password']
         user = User.query.filter_by(email=email).first()
         
-        if user and check_password_hash(user.password_hash, password):
+        if user and user.password_hash and check_password_hash(user.password_hash, password):
             login_user(user)
             
             # Check for pending sharing token
@@ -756,6 +763,9 @@ def login():
                 return redirect(next_page)
             
             return redirect(url_for('index'))
+        elif user and not user.password_hash:
+            # User exists but has no password (OAuth user)
+            flash(f'This account was created with {user.provider.title()} login. Please use the {user.provider.title()} login button instead.')
         else:
             flash('Invalid email or password')
     
@@ -1124,6 +1134,7 @@ def view_project(id):
         'can_edit_project': PermissionManager.has_permission(current_user.id, id, 'edit_project'),
         'can_edit_tasks': PermissionManager.has_permission(current_user.id, id, 'edit_tasks'),
         'can_create_tasks': PermissionManager.has_permission(current_user.id, id, 'create_tasks'),
+        'can_assign_tasks': PermissionManager.has_permission(current_user.id, id, 'assign_tasks'),
         'can_delete_project': PermissionManager.has_permission(current_user.id, id, 'delete_project'),
         'can_manage_collaborators': PermissionManager.has_permission(current_user.id, id, 'manage_collaborators'),
         'can_view_collaborators': True,  # All roles can view collaborators
@@ -1274,6 +1285,19 @@ def new_task(project_id):
         # Get the next sort order for this project
         max_sort_order = db.session.query(db.func.max(Task.sort_order)).filter_by(project_id=project_id).scalar() or 0
         
+        # Handle task assignment
+        assigned_to_id = request.form.get('assigned_to')
+        assigned_to = None
+        assigned_by = None
+        assigned_at = None
+        
+        if assigned_to_id and PermissionManager.has_permission(current_user.id, project_id, 'assign_tasks'):
+            # Verify the user is a collaborator
+            if project.has_collaborator(int(assigned_to_id)):
+                assigned_to = int(assigned_to_id)
+                assigned_by = current_user.id
+                assigned_at = datetime.utcnow()
+        
         task = Task(
             title=request.form['title'],
             description=request.form['description'],
@@ -1288,7 +1312,10 @@ def new_task(project_id):
             sort_order=max_sort_order + 1,
             risk_level=request.form.get('risk_level', 'low'),
             risk_description=request.form.get('risk_description', ''),
-            mitigation_plan=request.form.get('mitigation_plan', '')
+            mitigation_plan=request.form.get('mitigation_plan', ''),
+            assigned_to=assigned_to,
+            assigned_by=assigned_by,
+            assigned_at=assigned_at
         )
         db.session.add(task)
         db.session.flush()  # Get the task ID
@@ -1338,7 +1365,35 @@ def new_task(project_id):
     # Get existing tasks for parent selection and labels for selection
     tasks = Task.query.filter_by(project_id=project_id).all()
     labels = Label.query.filter_by(project_id=project_id).all()
-    return render_template('new_task.html', project=project, tasks=tasks, labels=labels)
+    
+    # Get collaborators for assignment
+    collaborators = []
+    if PermissionManager.has_permission(current_user.id, project_id, 'assign_tasks'):
+        # Add owner
+        owner = User.query.get(project.owner_id)
+        if owner:
+            collaborators.append({
+                'id': owner.id,
+                'name': owner.name,
+                'email': owner.email,
+                'role': 'owner'
+            })
+        
+        # Add other collaborators
+        for collab in project.get_collaborators():
+            collaborators.append({
+                'id': collab.user.id,
+                'name': collab.user.name,
+                'email': collab.user.email,
+                'role': collab.role
+            })
+    
+    # Get user permissions
+    user_permissions = {
+        'can_assign_tasks': PermissionManager.has_permission(current_user.id, project_id, 'assign_tasks')
+    }
+    
+    return render_template('new_task.html', project=project, tasks=tasks, labels=labels, collaborators=collaborators, user_permissions=user_permissions)
 
 @app.route('/projects/<int:project_id>/tasks/<int:task_id>/edit', methods=['GET', 'POST'])
 @login_required
@@ -1366,6 +1421,18 @@ def edit_task(project_id, task_id):
         task.risk_description = request.form.get('risk_description', '')
         task.mitigation_plan = request.form.get('mitigation_plan', '')
         task.updated_at = datetime.utcnow()
+        
+        # Handle task assignment
+        assigned_to_id = request.form.get('assigned_to')
+        if PermissionManager.has_permission(current_user.id, project_id, 'assign_tasks'):
+            if assigned_to_id and project.has_collaborator(int(assigned_to_id)):
+                task.assigned_to = int(assigned_to_id)
+                task.assigned_by = current_user.id
+                task.assigned_at = datetime.utcnow()
+            else:
+                task.assigned_to = None
+                task.assigned_by = None
+                task.assigned_at = None
         
         # Handle labels - remove existing and add new ones
         TaskLabel.query.filter_by(task_id=task_id).delete()
@@ -1412,7 +1479,35 @@ def edit_task(project_id, task_id):
     
     tasks = Task.query.filter_by(project_id=project_id).filter(Task.id != task_id).all()
     labels = Label.query.filter_by(project_id=project_id).all()
-    return render_template('edit_task.html', project=project, task=task, tasks=tasks, labels=labels)
+    
+    # Get collaborators for assignment
+    collaborators = []
+    if PermissionManager.has_permission(current_user.id, project_id, 'assign_tasks'):
+        # Add owner
+        owner = User.query.get(project.owner_id)
+        if owner:
+            collaborators.append({
+                'id': owner.id,
+                'name': owner.name,
+                'email': owner.email,
+                'role': 'owner'
+            })
+        
+        # Add other collaborators
+        for collab in project.get_collaborators():
+            collaborators.append({
+                'id': collab.user.id,
+                'name': collab.user.name,
+                'email': collab.user.email,
+                'role': collab.role
+            })
+    
+    # Get user permissions
+    user_permissions = {
+        'can_assign_tasks': PermissionManager.has_permission(current_user.id, project_id, 'assign_tasks')
+    }
+    
+    return render_template('edit_task.html', project=project, task=task, tasks=tasks, labels=labels, collaborators=collaborators, user_permissions=user_permissions)
 
 @app.route('/projects/<int:project_id>/tasks/<int:task_id>/delete', methods=['POST'])
 @login_required
@@ -2024,6 +2119,124 @@ def would_create_circular_dependency(task_id, depends_on_id):
                 to_check.append(dep.depends_on_id)
     
     return False
+
+# Task Assignment Routes
+@app.route('/api/projects/<int:project_id>/tasks/<int:task_id>/assign', methods=['POST'])
+@login_required
+def assign_task(project_id, task_id):
+    """Assign a task to a user"""
+    from services.permission_manager import PermissionManager
+    
+    try:
+        project = Project.query.get_or_404(project_id)
+        task = Task.query.get_or_404(task_id)
+        
+        # Check if user has permission to assign tasks and task belongs to project
+        if not PermissionManager.has_permission(current_user.id, project_id, 'assign_tasks') or task.project_id != project_id:
+            return jsonify({'error': 'Insufficient permissions to assign tasks'}), 403
+        
+        data = request.get_json()
+        assigned_to_id = data.get('assigned_to_id')
+        
+        if not assigned_to_id:
+            return jsonify({'error': 'assigned_to_id is required'}), 400
+        
+        # Check if the user to assign to is a collaborator on the project
+        if not project.has_collaborator(assigned_to_id):
+            return jsonify({'error': 'User is not a collaborator on this project'}), 400
+        
+        # Get the user being assigned to
+        assigned_user = User.query.get(assigned_to_id)
+        if not assigned_user:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Update task assignment
+        task.assigned_to = assigned_to_id
+        task.assigned_by = current_user.id
+        task.assigned_at = datetime.utcnow()
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': f'Task assigned to {assigned_user.name}',
+            'assigned_to': {
+                'id': assigned_user.id,
+                'name': assigned_user.name,
+                'email': assigned_user.email
+            },
+            'assigned_at': task.assigned_at.isoformat()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to assign task: {str(e)}'}), 500
+
+@app.route('/api/projects/<int:project_id>/tasks/<int:task_id>/unassign', methods=['POST'])
+@login_required
+def unassign_task(project_id, task_id):
+    """Unassign a task from a user"""
+    from services.permission_manager import PermissionManager
+    
+    try:
+        project = Project.query.get_or_404(project_id)
+        task = Task.query.get_or_404(task_id)
+        
+        # Check if user has permission to assign tasks and task belongs to project
+        if not PermissionManager.has_permission(current_user.id, project_id, 'assign_tasks') or task.project_id != project_id:
+            return jsonify({'error': 'Insufficient permissions to unassign tasks'}), 403
+        
+        # Update task assignment
+        task.assigned_to = None
+        task.assigned_by = None
+        task.assigned_at = None
+        
+        db.session.commit()
+        
+        return jsonify({'message': 'Task unassigned successfully'})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to unassign task: {str(e)}'}), 500
+
+@app.route('/api/projects/<int:project_id>/collaborators', methods=['GET'])
+@login_required
+def get_project_collaborators_for_assignment(project_id):
+    """Get list of project collaborators for assignment dropdown"""
+    from services.permission_manager import PermissionManager
+    
+    try:
+        project = Project.query.get_or_404(project_id)
+        
+        # Check if user has permission to view collaborators
+        if not PermissionManager.has_permission(current_user.id, project_id, 'view_collaborators'):
+            return jsonify({'error': 'Insufficient permissions to view collaborators'}), 403
+        
+        # Get all collaborators including the owner
+        collaborators = []
+        
+        # Add owner
+        owner = User.query.get(project.owner_id)
+        if owner:
+            collaborators.append({
+                'id': owner.id,
+                'name': owner.name,
+                'email': owner.email,
+                'role': 'owner'
+            })
+        
+        # Add other collaborators
+        for collab in project.get_collaborators():
+            collaborators.append({
+                'id': collab.user.id,
+                'name': collab.user.name,
+                'email': collab.user.email,
+                'role': collab.role
+            })
+        
+        return jsonify({'collaborators': collaborators})
+        
+    except Exception as e:
+        return jsonify({'error': f'Failed to get collaborators: {str(e)}'}), 500
 
 # Sharing invitation acceptance routes
 @app.route('/sharing/accept/<token>')

@@ -114,6 +114,22 @@ class PermissionManager:
         return PermissionManager.can_edit_project(project, user_id)
     
     @staticmethod
+    def can_assign_tasks(project, user_id: Optional[int] = None) -> bool:
+        """Check if user can assign tasks in a project"""
+        if user_id is None:
+            if not current_user.is_authenticated:
+                return False
+            user_id = current_user.id
+        
+        # Owner can always assign tasks
+        if project.owner_id == user_id:
+            return True
+        
+        # Check if user is admin collaborator
+        user_role = project.get_user_role(user_id)
+        return user_role == 'admin'
+    
+    @staticmethod
     def can_manage_labels(project, user_id: Optional[int] = None) -> bool:
         """Check if user can manage labels in a project"""
         return PermissionManager.can_edit_project(project, user_id)
@@ -128,6 +144,54 @@ class PermissionManager:
             return None
         
         return project.get_user_role(user_id)
+    
+    @staticmethod
+    def has_permission(user_id: int, project_id: int, permission: str) -> bool:
+        """Check if user has a specific permission in a project"""
+        from app import Project
+        
+        project = Project.query.get(project_id)
+        if not project:
+            return False
+        
+        # Check if user can access the project first
+        if not PermissionManager.can_access_project(user_id, project_id):
+            return False
+        
+        # Owner has all permissions
+        if project.owner_id == user_id:
+            return True
+        
+        # Get user role and check permissions
+        user_role = project.get_user_role(user_id)
+        if not user_role:
+            return False
+        
+        # Check specific permissions based on role
+        if permission == 'view_only':
+            return True  # All collaborators can view
+        elif permission == 'create_tasks':
+            return user_role in ['admin', 'editor']
+        elif permission == 'edit_tasks':
+            return user_role in ['admin', 'editor']
+        elif permission == 'assign_tasks':
+            return user_role == 'admin'
+        elif permission == 'edit_project':
+            return user_role in ['admin']
+        elif permission == 'manage_collaborators':
+            return user_role == 'admin'
+        elif permission == 'manage_labels':
+            return user_role in ['admin']
+        elif permission == 'view_collaborators':
+            return True  # All collaborators can view other collaborators
+        elif permission == 'delete_project':
+            return user_role == 'owner'  # Only owner can delete
+        elif permission == 'delete_tasks':
+            return user_role in ['admin', 'editor']  # Admin and editor can delete tasks
+        elif permission == 'share_project':
+            return user_role in ['admin']  # Admin can share project
+        
+        return False
     
     @staticmethod
     def require_access(project, user_id: Optional[int] = None) -> bool:
@@ -173,32 +237,6 @@ class PermissionManager:
         all_project_ids = list(set(owned_project_ids + shared_project_ids))
         return all_project_ids
     
-    @staticmethod
-    def has_permission(user_id: int, project_id: int, permission: str) -> bool:
-        """Check if user has specific permission for a project"""
-        from app import Project
-        
-        project = Project.query.get(project_id)
-        if not project:
-            return False
-        
-        # Map permission strings to methods
-        permission_map = {
-            'edit_project': PermissionManager.can_edit_project,
-            'delete_project': PermissionManager.can_delete_project,
-            'manage_collaborators': PermissionManager.can_manage_collaborators,
-            'create_tasks': PermissionManager.can_create_tasks,
-            'edit_tasks': PermissionManager.can_edit_tasks,
-            'delete_tasks': PermissionManager.can_delete_tasks,
-            'manage_labels': PermissionManager.can_manage_labels,
-            'share_project': PermissionManager.can_share_project
-        }
-        
-        permission_method = permission_map.get(permission)
-        if permission_method:
-            return permission_method(project, user_id)
-        
-        return False
     
     @staticmethod
     def can_manage_role(user_id: int, project_id: int, target_role: str) -> bool:

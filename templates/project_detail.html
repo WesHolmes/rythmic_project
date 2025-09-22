@@ -233,6 +233,12 @@
                     <option value="high" class="bg-gray-800 text-white">High Risk</option>
                     <option value="critical" class="bg-gray-800 text-white">Critical Risk</option>
                 </select>
+
+                <select id="assignment-filter"
+                    class="px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <option value="" class="bg-gray-800 text-white">All Tasks</option>
+                    <option value="assigned" class="bg-gray-800 text-white">My Tasks</option>
+                </select>
             </div>
 
             <!-- Search and Clear -->
@@ -346,6 +352,21 @@
                                     {{ task.size.title() }}
                                 </span>
                                 <span class="text-gray-500">{{ task.owner.name }}</span>
+                                {% if task.assigned_user %}
+                                <div class="inline-flex items-center space-x-2">
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400">
+                                        <i class="fas fa-user mr-1"></i>
+                                        Assigned to: {{ task.assigned_user.name }}
+                                    </span>
+                                    {% if user_permissions.can_assign_tasks %}
+                                    <button class="unassign-task text-gray-500 hover:text-red-400 p-1 rounded-md hover:bg-red-500/10 transition-all duration-200"
+                                        data-task-id="{{ task.id }}" 
+                                        title="Unassign Task">
+                                        <i class="fas fa-user-times text-xs"></i>
+                                    </button>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
                                 {% if task.start_date %}
                                 <span class="text-gray-500">{{ task.start_date.strftime('%b %d') }}</span>
                                 {% endif %}
@@ -385,6 +406,12 @@
 
                         <!-- Action Buttons -->
                         <div class="flex items-center space-x-1">
+                            <!-- Task Details Dropdown Toggle -->
+                            <button
+                                class="task-details-toggle text-gray-500 hover:text-blue-400 p-1.5 rounded-md hover:bg-blue-500/10 transition-all duration-200"
+                                data-task-id="{{ task.id }}" title="View Task Details">
+                                <i class="fas fa-chevron-down text-sm transition-transform duration-200"></i>
+                            </button>
                             {% if user_permissions.can_edit_tasks %}
                             <!-- Dependency Management -->
                             <button
@@ -392,6 +419,18 @@
                                 data-task-id="{{ task.id }}" title="Manage Dependencies">
                                 <i class="fas fa-project-diagram text-sm"></i>
                             </button>
+                            {% endif %}
+                            {% if user_permissions.can_assign_tasks %}
+                            <!-- Task Assignment -->
+                            <button
+                                class="assign-task text-gray-500 hover:text-green-400 p-1.5 rounded-md hover:bg-green-500/10 transition-all duration-200"
+                                data-task-id="{{ task.id }}" 
+                                data-assigned-to="{{ task.assigned_to or '' }}"
+                                title="Assign Task">
+                                <i class="fas fa-user-plus text-sm"></i>
+                            </button>
+                            {% endif %}
+                            {% if user_permissions.can_edit_tasks %}
                             <form method="POST"
                                 action="{{ url_for('delete_task', project_id=project.id, task_id=task.id) }}"
                                 class="inline" onsubmit="return confirm('Are you sure you want to delete this task?')">
@@ -401,6 +440,160 @@
                                     <i class="fas fa-trash text-sm"></i>
                                 </button>
                             </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Task Details Dropdown Content -->
+                <div class="task-details-content hidden bg-gray-800/30 border-t border-gray-700 px-6 py-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Left Column -->
+                        <div class="space-y-4">
+                            <!-- Full Description -->
+                            {% if task.description %}
+                            <div>
+                                <h4 class="text-sm font-semibold text-gray-300 mb-2 flex items-center">
+                                    <i class="fas fa-align-left mr-2 text-blue-400"></i>
+                                    Description
+                                </h4>
+                                <div class="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap">{{ task.description }}</div>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Risk Information -->
+                            {% if task.risk_level and task.risk_level != 'low' %}
+                            <div>
+                                <h4 class="text-sm font-semibold text-gray-300 mb-2 flex items-center">
+                                    <i class="fas fa-exclamation-triangle mr-2 text-orange-400"></i>
+                                    Risk Assessment
+                                </h4>
+                                <div class="space-y-2">
+                                    <div class="flex items-center space-x-2">
+                                        <span class="text-xs text-gray-400">Level:</span>
+                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
+                                            {% if task.risk_level == 'critical' %}bg-red-500/20 text-red-400
+                                            {% elif task.risk_level == 'high' %}bg-orange-500/20 text-orange-400
+                                            {% elif task.risk_level == 'medium' %}bg-yellow-500/20 text-yellow-400{% endif %}">
+                                            {{ task.risk_level.title() }}
+                                        </span>
+                                    </div>
+                                    {% if task.risk_description %}
+                                    <div>
+                                        <span class="text-xs text-gray-400 block mb-1">Description:</span>
+                                        <div class="text-gray-300 text-sm">{{ task.risk_description }}</div>
+                                    </div>
+                                    {% endif %}
+                                    {% if task.mitigation_plan %}
+                                    <div>
+                                        <span class="text-xs text-gray-400 block mb-1">Mitigation Plan:</span>
+                                        <div class="text-gray-300 text-sm">{{ task.mitigation_plan }}</div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Right Column -->
+                        <div class="space-y-4">
+                            <!-- Task Metadata -->
+                            <div>
+                                <h4 class="text-sm font-semibold text-gray-300 mb-2 flex items-center">
+                                    <i class="fas fa-info-circle mr-2 text-green-400"></i>
+                                    Task Information
+                                </h4>
+                                <div class="space-y-2 text-sm">
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-400">Status:</span>
+                                        <span class="text-white">{{ task.status.replace('_', ' ').title() }}</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-400">Priority:</span>
+                                        <span class="text-white">{{ task.priority.title() }}</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-400">Size:</span>
+                                        <span class="text-white">{{ task.size.title() }}</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-400">Owner:</span>
+                                        <span class="text-white">{{ task.owner.name }}</span>
+                                    </div>
+                                    {% if task.start_date %}
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-400">Start Date:</span>
+                                        <span class="text-white">{{ task.start_date.strftime('%B %d, %Y') }}</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if task.end_date %}
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-400">End Date:</span>
+                                        <span class="text-white">{{ task.end_date.strftime('%B %d, %Y') }}</span>
+                                    </div>
+                                    {% endif %}
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-400">Created:</span>
+                                        <span class="text-white">{{ task.created_at.strftime('%B %d, %Y') }}</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-400">Updated:</span>
+                                        <span class="text-white">{{ task.updated_at.strftime('%B %d, %Y') }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Dependencies -->
+                            {% if task.dependencies or task.dependents %}
+                            <div>
+                                <h4 class="text-sm font-semibold text-gray-300 mb-2 flex items-center">
+                                    <i class="fas fa-project-diagram mr-2 text-purple-400"></i>
+                                    Dependencies
+                                </h4>
+                                <div class="space-y-2">
+                                    {% if task.dependencies %}
+                                    <div>
+                                        <span class="text-xs text-gray-400 block mb-1">Depends on:</span>
+                                        {% for dep in task.dependencies %}
+                                        <div class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400 mr-1 mb-1">
+                                            <i class="fas fa-link mr-1"></i>
+                                            {{ dep.depends_on_title }}
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                    {% if task.dependents %}
+                                    <div>
+                                        <span class="text-xs text-gray-400 block mb-1">Required by:</span>
+                                        {% for dep in task.dependents %}
+                                        <div class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400 mr-1 mb-1">
+                                            <i class="fas fa-arrow-right mr-1"></i>
+                                            {{ dep.task_title }}
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Labels -->
+                            {% if task.labels %}
+                            <div>
+                                <h4 class="text-sm font-semibold text-gray-300 mb-2 flex items-center">
+                                    <i class="fas fa-tags mr-2 text-pink-400"></i>
+                                    Labels
+                                </h4>
+                                <div class="flex flex-wrap gap-1">
+                                    {% for label in task.labels %}
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
+                                        style="background-color: {{ label.color }}20; color: {{ label.color }}">
+                                        <i class="{{ label.icon }} mr-1 text-xs"></i>
+                                        {{ label.name }}
+                                    </span>
+                                    {% endfor %}
+                                </div>
+                            </div>
                             {% endif %}
                         </div>
                     </div>
@@ -444,6 +637,39 @@
         </div>
     </div>
 </div>
+
+<!-- Task Assignment Modal -->
+<div id="task-assignment-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="glass rounded-2xl p-6 w-full max-w-md mx-4">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-xl font-semibold text-white">Assign Task</h3>
+            <button id="close-assignment-modal" class="text-gray-400 hover:text-white">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-300 mb-2">
+                    Assign to:
+                </label>
+                <select id="assignment-user-select" class="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <option value="">Unassigned</option>
+                </select>
+            </div>
+            
+            <div class="flex justify-end space-x-3">
+                <button id="cancel-assignment" class="px-4 py-2 text-gray-400 hover:text-white transition-colors">
+                    Cancel
+                </button>
+                <button id="save-assignment" class="btn-primary px-4 py-2 text-white rounded-xl font-semibold">
+                    Assign Task
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
     <!-- Include Sharing Modals -->
     {% include 'sharing_modal.html' %}
     {% include 'collaborator_management.html' %}
@@ -493,7 +719,8 @@
     #status-filter,
     #priority-filter,
     #label-filter,
-    #risk-filter {
+    #risk-filter,
+    #assignment-filter {
         color: #ffffff !important;
         background-color: #1f2937 !important;
         border: 1px solid #4b5563 !important;
@@ -502,7 +729,8 @@
     #status-filter option,
     #priority-filter option,
     #label-filter option,
-    #risk-filter option {
+    #risk-filter option,
+    #assignment-filter option {
         background-color: #1f2937 !important;
         color: #ffffff !important;
     }
@@ -884,6 +1112,49 @@
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
         transform: translateY(-2px);
     }
+
+    /* Task Details Dropdown Styles */
+    .task-details-content {
+        background: linear-gradient(135deg, rgba(31, 41, 55, 0.9) 0%, rgba(17, 24, 39, 0.9) 100%);
+        border-top: 1px solid rgba(75, 85, 99, 0.3);
+        backdrop-filter: blur(15px);
+        box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .task-details-content h4 {
+        color: #e5e7eb;
+        font-weight: 600;
+        letter-spacing: 0.025em;
+    }
+
+    .task-details-content .text-gray-300 {
+        color: #d1d5db;
+        line-height: 1.6;
+    }
+
+    .task-details-content .text-gray-400 {
+        color: #9ca3af;
+    }
+
+    /* Smooth dropdown animation */
+    .task-details-content {
+        transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        overflow: hidden;
+    }
+
+    /* Chevron rotation animation */
+    .task-details-toggle i {
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Hover effects for dropdown sections */
+    .task-details-content > div > div:hover {
+        background: rgba(55, 65, 81, 0.1);
+        border-radius: 0.5rem;
+        padding: 0.5rem;
+        margin: -0.5rem;
+        transition: all 0.2s ease;
+    }
 </style>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
@@ -949,25 +1220,25 @@
                         },
                         body: JSON.stringify({
                             project_id: {{ project.id }}
-                    })
-        });
+                        })
+                    });
 
-    const data = await response.json();
+                    const data = await response.json();
 
-    if (response.ok) {
-        // Show summary in a modal or alert
-        showSummaryModal(data.summary);
-    } else {
-        alert('Error: ' + data.error);
-    }
-            } catch (error) {
-        alert('Error generating summary: ' + error.message);
-    } finally {
-        generateSummaryBtn.disabled = false;
-        generateSummaryBtn.innerHTML = '<i class="fas fa-chart-line mr-2"></i>AI Summary';
-    }
-        });
-    }
+                    if (response.ok) {
+                        // Show summary in a modal or alert
+                        showSummaryModal(data.summary);
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                } catch (error) {
+                    alert('Error generating summary: ' + error.message);
+                } finally {
+                    generateSummaryBtn.disabled = false;
+                    generateSummaryBtn.innerHTML = '<i class="fas fa-chart-line mr-2"></i>AI Summary';
+                }
+            });
+        }
 
     function showSummaryModal(summary) {
         // Create modal
@@ -1024,6 +1295,13 @@
             const taskId = button.dataset.taskId;
             showTaskDependenciesModal(taskId);
         }
+
+        // Task details dropdown toggle
+        if (e.target.closest('.task-details-toggle')) {
+            const button = e.target.closest('.task-details-toggle');
+            const taskId = button.dataset.taskId;
+            toggleTaskDetails(taskId);
+        }
     });
 
     // Filter functionality
@@ -1031,9 +1309,10 @@
     const priorityFilter = document.getElementById('priority-filter');
     const labelFilter = document.getElementById('label-filter');
     const riskFilter = document.getElementById('risk-filter');
+    const assignmentFilter = document.getElementById('assignment-filter');
     const searchInput = document.getElementById('search-tasks');
 
-    [statusFilter, priorityFilter, labelFilter, riskFilter, searchInput].forEach(element => {
+    [statusFilter, priorityFilter, labelFilter, riskFilter, assignmentFilter, searchInput].forEach(element => {
         if (element) {
             element.addEventListener('change', filterTasks);
             element.addEventListener('input', filterTasks);
@@ -1045,6 +1324,7 @@
         const priorityValue = priorityFilter.value;
         const labelValue = labelFilter.value;
         const riskValue = riskFilter.value;
+        const assignmentValue = assignmentFilter.value;
         const searchValue = searchInput.value.toLowerCase();
 
         const taskElements = document.querySelectorAll('#tasks-list .task-item');
@@ -1082,6 +1362,26 @@
                     return labelOption && label.toLowerCase().includes(labelOption.textContent.toLowerCase());
                 });
                 if (!hasLabel) {
+                    showTask = false;
+                }
+            }
+
+            // Assignment filter
+            if (assignmentValue === 'assigned') {
+                // Check if task is assigned to current user
+                const currentUserId = document.querySelector('[data-user-id]')?.dataset.userId;
+                const taskAssignedTo = taskElement.querySelector('.assign-task')?.dataset.assignedTo;
+                
+                // Debug logging
+                console.log('Assignment filter debug:', {
+                    currentUserId,
+                    taskAssignedTo,
+                    taskTitle: taskElement.querySelector('h3 a').textContent,
+                    match: taskAssignedTo === currentUserId
+                });
+                
+                // Task must be assigned and assigned to current user
+                if (!taskAssignedTo || taskAssignedTo !== currentUserId) {
                     showTask = false;
                 }
             }
@@ -1233,6 +1533,59 @@
         }
     }
 
+    // Toggle Task Details Dropdown
+    function toggleTaskDetails(taskId) {
+        const taskItem = document.querySelector(`[data-task-id="${taskId}"].task-item`);
+        const detailsContent = taskItem.querySelector('.task-details-content');
+        const toggleButton = taskItem.querySelector('.task-details-toggle');
+        const chevronIcon = toggleButton.querySelector('i');
+
+        if (detailsContent.classList.contains('hidden')) {
+            // Show details
+            detailsContent.classList.remove('hidden');
+            chevronIcon.style.transform = 'rotate(180deg)';
+            toggleButton.title = 'Hide Task Details';
+            
+            // Add smooth animation
+            detailsContent.style.maxHeight = '0';
+            detailsContent.style.overflow = 'hidden';
+            detailsContent.style.transition = 'max-height 0.3s ease-out';
+            
+            // Trigger reflow
+            detailsContent.offsetHeight;
+            
+            // Set final height
+            detailsContent.style.maxHeight = detailsContent.scrollHeight + 'px';
+            
+            // Remove height constraint after animation
+            setTimeout(() => {
+                detailsContent.style.maxHeight = 'none';
+                detailsContent.style.overflow = 'visible';
+            }, 300);
+        } else {
+            // Hide details
+            detailsContent.style.maxHeight = detailsContent.scrollHeight + 'px';
+            detailsContent.style.overflow = 'hidden';
+            detailsContent.style.transition = 'max-height 0.3s ease-in';
+            
+            // Trigger reflow
+            detailsContent.offsetHeight;
+            
+            // Collapse
+            detailsContent.style.maxHeight = '0';
+            
+            setTimeout(() => {
+                detailsContent.classList.add('hidden');
+                detailsContent.style.maxHeight = 'none';
+                detailsContent.style.overflow = 'visible';
+                detailsContent.style.transition = 'none';
+            }, 300);
+            
+            chevronIcon.style.transform = 'rotate(0deg)';
+            toggleButton.title = 'View Task Details';
+        }
+    }
+
 
     // Show Task Dependencies Modal
     function showTaskDependenciesModal(taskId) {
@@ -1263,9 +1616,8 @@
 
     // Initialize Risk Dashboard
     function initializeRiskDashboard() {
-        const tasks = {{ tasks_data| tojson
-    }};
-    const riskStats = {
+        const tasks = {{ tasks_data|tojson }};
+        const riskStats = {
         low: 0,
         medium: 0,
         high: 0,
@@ -1291,9 +1643,8 @@
 
     // Show Detailed Risk Dashboard
     function showDetailedRiskDashboard() {
-        const tasks = {{ tasks_data| tojson
-    }};
-    const riskStats = {
+        const tasks = {{ tasks_data|tojson }};
+        const riskStats = {
         low: 0,
         medium: 0,
         high: 0,
@@ -1501,8 +1852,7 @@
 
     function renderTimeline() {
         const container = document.getElementById('timeline-container');
-        const tasks = {{ tasks_data| tojson
-    }};
+        const tasks = {{ tasks_data|tojson }};
 
     if (tasks.length === 0) {
         container.innerHTML = '<p class="text-gray-400 text-center">No tasks to display in timeline</p>';
@@ -1584,5 +1934,218 @@
     
     // Optional: Update every 30 seconds (much less frequent than WebSocket)
     setInterval(updateUserInfo, 30000);
+
+    // Task Assignment Functionality
+    let currentTaskId = null;
+    let collaborators = [];
+
+    // Load collaborators when page loads
+    async function loadCollaborators() {
+        try {
+            const response = await fetch(`/api/projects/{{ project.id }}/collaborators`);
+            const data = await response.json();
+            if (data.collaborators) {
+                collaborators = data.collaborators;
+                populateAssignmentDropdown();
+            }
+        } catch (error) {
+            console.error('Failed to load collaborators:', error);
+        }
+    }
+
+    function populateAssignmentDropdown() {
+        const select = document.getElementById('assignment-user-select');
+        select.innerHTML = '<option value="">Unassigned</option>';
+        
+        collaborators.forEach(collaborator => {
+            const option = document.createElement('option');
+            option.value = collaborator.id;
+            option.textContent = `${collaborator.name} (${collaborator.role})`;
+            select.appendChild(option);
+        });
+    }
+
+    // Task assignment modal handlers
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.assign-task')) {
+            const button = e.target.closest('.assign-task');
+            currentTaskId = button.dataset.taskId;
+            const assignedTo = button.dataset.assignedTo;
+            
+            // Set current assignment
+            const select = document.getElementById('assignment-user-select');
+            select.value = assignedTo || '';
+            
+            // Show modal
+            document.getElementById('task-assignment-modal').classList.remove('hidden');
+        }
+        
+        if (e.target.closest('.unassign-task')) {
+            const button = e.target.closest('.unassign-task');
+            const taskId = button.dataset.taskId;
+            
+            // Confirm unassign action
+            if (confirm('Are you sure you want to unassign this task?')) {
+                unassignTask(taskId);
+            }
+        }
+        
+        if (e.target.id === 'close-assignment-modal' || e.target.id === 'cancel-assignment') {
+            document.getElementById('task-assignment-modal').classList.add('hidden');
+            currentTaskId = null;
+        }
+        
+        if (e.target.id === 'save-assignment') {
+            saveTaskAssignment();
+        }
+    });
+
+    async function saveTaskAssignment() {
+        if (!currentTaskId) return;
+        
+        const select = document.getElementById('assignment-user-select');
+        const assignedToId = select.value;
+        
+        try {
+            let response;
+            if (assignedToId) {
+                // Assign task
+                response = await fetch(`/api/projects/{{ project.id }}/tasks/${currentTaskId}/assign`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ assigned_to_id: parseInt(assignedToId) })
+                });
+            } else {
+                // Unassign task
+                response = await fetch(`/api/projects/{{ project.id }}/tasks/${currentTaskId}/unassign`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+            }
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                // Update the UI
+                updateTaskAssignmentUI(currentTaskId, assignedToId, data.assigned_to);
+                
+                // Close modal
+                document.getElementById('task-assignment-modal').classList.add('hidden');
+                currentTaskId = null;
+                
+                // Show success message
+                if (assignedToId) {
+                    showNotification(`Task assigned to ${data.assigned_to.name}`, 'success');
+                } else {
+                    showNotification('Task unassigned successfully', 'success');
+                }
+            } else {
+                showNotification(data.error || 'Failed to assign task', 'error');
+            }
+        } catch (error) {
+            console.error('Error assigning task:', error);
+            showNotification('Failed to assign task', 'error');
+        }
+    }
+
+    async function unassignTask(taskId) {
+        try {
+            const response = await fetch(`/api/projects/{{ project.id }}/tasks/${taskId}/unassign`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                // Update the UI
+                updateTaskAssignmentUI(taskId, null, null);
+                showNotification('Task unassigned successfully', 'success');
+            } else {
+                showNotification(data.error || 'Failed to unassign task', 'error');
+            }
+        } catch (error) {
+            console.error('Error unassigning task:', error);
+            showNotification('Failed to unassign task', 'error');
+        }
+    }
+
+    function updateTaskAssignmentUI(taskId, assignedToId, assignedToData) {
+        const taskElement = document.querySelector(`[data-task-id="${taskId}"]`);
+        if (!taskElement) return;
+        
+        // Find the assignment display area (now wrapped in a div)
+        const assignmentContainer = taskElement.querySelector('.inline-flex.items-center.space-x-2');
+        
+        if (assignedToId && assignedToData) {
+            if (assignmentContainer) {
+                // Update existing assignment display
+                assignmentContainer.innerHTML = `
+                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400">
+                        <i class="fas fa-user mr-1"></i>
+                        Assigned to: ${assignedToData.name}
+                    </span>
+                    <button class="unassign-task text-gray-500 hover:text-red-400 p-1 rounded-md hover:bg-red-500/10 transition-all duration-200"
+                        data-task-id="${taskId}" 
+                        title="Unassign Task">
+                        <i class="fas fa-user-times text-xs"></i>
+                    </button>
+                `;
+            } else {
+                // Create new assignment display
+                const taskInfo = taskElement.querySelector('.flex-1 .flex.items-center.space-x-4.mt-3.text-sm');
+                if (taskInfo) {
+                    const assignmentContainer = document.createElement('div');
+                    assignmentContainer.className = 'inline-flex items-center space-x-2';
+                    assignmentContainer.innerHTML = `
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400">
+                            <i class="fas fa-user mr-1"></i>
+                            Assigned to: ${assignedToData.name}
+                        </span>
+                        <button class="unassign-task text-gray-500 hover:text-red-400 p-1 rounded-md hover:bg-red-500/10 transition-all duration-200"
+                            data-task-id="${taskId}" 
+                            title="Unassign Task">
+                            <i class="fas fa-user-times text-xs"></i>
+                        </button>
+                    `;
+                    taskInfo.appendChild(assignmentContainer);
+                }
+            }
+        } else {
+            // Remove assignment display
+            if (assignmentContainer) {
+                assignmentContainer.remove();
+            }
+        }
+        
+        // Update the assignment button data
+        const assignButton = taskElement.querySelector('.assign-task');
+        if (assignButton) {
+            assignButton.dataset.assignedTo = assignedToId || '';
+        }
+    }
+
+    function showNotification(message, type) {
+        // Simple notification - you can enhance this with a proper notification system
+        const notification = document.createElement('div');
+        notification.className = `fixed top-4 right-4 px-6 py-3 rounded-xl text-white font-semibold z-50 ${
+            type === 'success' ? 'bg-green-500' : 'bg-red-500'
+        }`;
+        notification.textContent = message;
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.remove();
+        }, 3000);
+    }
+
+    // Load collaborators on page load
+    loadCollaborators();
 </script>
 {% endblock %}

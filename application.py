@@ -21,14 +21,14 @@ if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
 
 try:
-    # Import the Flask app and SocketIO
+    # Import the Flask app
     logger.info("Attempting to import Flask app...")
-    from app import app, socketio
+    from app import app
     
-    logger.info("Successfully imported Flask app and SocketIO")
+    logger.info("Successfully imported Flask app")
     
-    # For gunicorn with gevent worker, we need to use the SocketIO WSGI app
-    application = socketio
+    # For gunicorn with gevent worker, we need to use the Flask WSGI app
+    application = app
     
     logger.info("Application configured for Azure App Service Linux")
     
@@ -68,8 +68,8 @@ if __name__ == "__main__":
     if os.environ.get('WEBSITE_SITE_NAME'):
         # Running on Azure App Service
         logger.info(f"Starting application on Azure App Service, port {port}")
-        socketio.run(app, host='0.0.0.0', port=port, debug=False)
+        app.run(host='0.0.0.0', port=port, debug=False)
     else:
         # Local development
         logger.info(f"Starting application locally on port {port}")
-        socketio.run(app, host='0.0.0.0', port=port, debug=True)
+        app.run(host='0.0.0.0', port=port, debug=True)

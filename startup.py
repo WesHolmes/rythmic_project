@@ -194,16 +194,15 @@ def main():
     
     # Import and run the Flask application
     try:
-        from app import app, socketio
+        from app import app
         
         # Get port from environment (Azure App Service sets this)
         port = int(os.environ.get('PORT', 8000))
         
         logger.info(f"Starting Flask application on port {port}")
         
-        # Run with SocketIO support
-        socketio.run(
-            app,
+        # Run Flask application
+        app.run(
             host='0.0.0.0',
             port=port,
             debug=False,

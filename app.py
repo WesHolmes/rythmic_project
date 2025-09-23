@@ -1399,8 +1399,10 @@ def view_project(id):
     }
     
     # Get tasks with hierarchy, ordered by parent_id (nulls first), then sort_order
+    # Azure SQL Database doesn't support NULLS FIRST, so we use CASE statement instead
     tasks = Task.query.filter_by(project_id=id).order_by(
-        Task.parent_id.asc().nullsfirst(), 
+        db.case((Task.parent_id.is_(None), 0), else_=1),
+        Task.parent_id.asc(),
         Task.sort_order, 
         Task.created_at
     ).all()

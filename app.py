@@ -472,6 +472,7 @@ class Task(db.Model):
             return all(field in columns for field in ['assigned_to', 'assigned_by', 'assigned_at'])
         except Exception:
             return False
+    
 
 # Sharing Models
 class ProjectCollaborator(db.Model):
@@ -1053,14 +1054,97 @@ def projects():
         try:
             from migrations.azure_production_migration import run_production_migration
             print("Attempting to run migration to fix schema issues...")
-            run_production_migration()
-            print("Migration completed, retrying projects route...")
-            # Retry the original request
-            return projects()
+            migration_success = run_production_migration()
+            if migration_success:
+                print("Migration completed, retrying projects route...")
+                # Retry the original request
+                return projects()
+            else:
+                print("Migration failed, trying alternative approach...")
+                # Try to run the simpler migration
+                try:
+                    from migrations.add_task_assignment import run_migration
+                    if run_migration():
+                        print("Alternative migration completed, retrying projects route...")
+                        return projects()
+                except Exception as alt_error:
+                    print(f"Alternative migration also failed: {alt_error}")
+                
+                flash("Database schema is being updated. Please refresh the page in a moment.", "info")
+                return render_template('projects.html', projects=[])
         except Exception as migration_error:
             print(f"Migration failed: {migration_error}")
             flash("Database schema is being updated. Please refresh the page in a moment.", "info")
             return render_template('projects.html', projects=[])
+
+@app.route('/debug-db')
+def debug_db():
+    """Debug endpoint to check database schema"""
+    try:
+        from sqlalchemy import inspect
+        inspector = inspect(db.engine)
+        
+        # Check if task table exists and what columns it has
+        tables = inspector.get_table_names()
+        task_columns = []
+        if 'task' in tables:
+            task_columns = [col['name'] for col in inspector.get_columns('task')]
+        
+        # Check assignment fields
+        has_assignment = Task.has_assignment_fields()
+        
+        return f'''
+        <h1>Database Debug Info</h1>
+        <h2>Tables:</h2>
+        <ul>
+        {''.join(f'<li>{table}</li>' for table in tables)}
+        </ul>
+        
+        <h2>Task Table Columns:</h2>
+        <ul>
+        {''.join(f'<li>{col}</li>' for col in task_columns)}
+        </ul>
+        
+        <h2>Assignment Fields Available:</h2>
+        <p>{has_assignment}</p>
+        
+        <h2>Missing Assignment Fields:</h2>
+        <ul>
+        {''.join(f'<li>{field}</li>' for field in ['assigned_to', 'assigned_by', 'assigned_at'] if field not in task_columns)}
+        </ul>
+        
+        <h2>Actions:</h2>
+        <p><a href="/fix-db">Run Database Fix</a></p>
+        '''
+    except Exception as e:
+        return f"<h1>Database Debug Error</h1><p>{str(e)}</p>"
+
+@app.route('/fix-db')
+def fix_db():
+    """Manual database fix endpoint"""
+    try:
+        from migrations.add_task_assignment import run_migration
+        print("Running manual database fix...")
+        
+        if run_migration():
+            return '''
+            <h1>Database Fix Successful!</h1>
+            <p>The database schema has been updated successfully.</p>
+            <p><a href="/debug-db">Check Database Status</a></p>
+            <p><a href="/projects">Go to Projects</a></p>
+            '''
+        else:
+            return '''
+            <h1>Database Fix Failed</h1>
+            <p>There was an error updating the database schema.</p>
+            <p><a href="/debug-db">Check Database Status</a></p>
+            '''
+    except Exception as e:
+        return f'''
+        <h1>Database Fix Error</h1>
+        <p>Error: {str(e)}</p>
+        <p><a href="/debug-db">Check Database Status</a></p>
+        '''
 
 @app.route('/test-css')
 def test_css():

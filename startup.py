@@ -92,8 +92,11 @@ def initialize_database():
             # Run any pending migrations
             try:
                 from migrations.azure_production_migration import run_production_migration
-                run_production_migration()
-                logger.info("Azure production migration completed")
+                migration_success = run_production_migration()
+                if migration_success:
+                    logger.info("Azure production migration completed successfully")
+                else:
+                    logger.warning("Azure production migration completed with warnings")
             except ImportError:
                 logger.info("No Azure migration script found, skipping")
             except Exception as e:

@@ -226,27 +226,36 @@ class AzureProductionMigration:
             with db.engine.connect() as conn:
                 # Add assigned_to column
                 if 'assigned_to' not in columns:
-                    conn.execute(text("""
-                        ALTER TABLE task 
-                        ADD COLUMN assigned_to INTEGER REFERENCES user(id)
-                    """))
-                    logger.info("✓ Added 'assigned_to' column")
+                    try:
+                        conn.execute(text("""
+                            ALTER TABLE task 
+                            ADD assigned_to INTEGER REFERENCES [user](id)
+                        """))
+                        logger.info("✓ Added 'assigned_to' column")
+                    except Exception as e:
+                        logger.warning(f"Could not add 'assigned_to' column: {e}")
                 
                 # Add assigned_by column
                 if 'assigned_by' not in columns:
-                    conn.execute(text("""
-                        ALTER TABLE task 
-                        ADD COLUMN assigned_by INTEGER REFERENCES user(id)
-                    """))
-                    logger.info("✓ Added 'assigned_by' column")
+                    try:
+                        conn.execute(text("""
+                            ALTER TABLE task 
+                            ADD assigned_by INTEGER REFERENCES [user](id)
+                        """))
+                        logger.info("✓ Added 'assigned_by' column")
+                    except Exception as e:
+                        logger.warning(f"Could not add 'assigned_by' column: {e}")
                 
                 # Add assigned_at column
                 if 'assigned_at' not in columns:
-                    conn.execute(text("""
-                        ALTER TABLE task 
-                        ADD COLUMN assigned_at DATETIME
-                    """))
-                    logger.info("✓ Added 'assigned_at' column")
+                    try:
+                        conn.execute(text("""
+                            ALTER TABLE task 
+                            ADD assigned_at DATETIME2
+                        """))
+                        logger.info("✓ Added 'assigned_at' column")
+                    except Exception as e:
+                        logger.warning(f"Could not add 'assigned_at' column: {e}")
                 
                 conn.commit()
             

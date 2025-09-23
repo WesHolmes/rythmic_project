@@ -47,7 +47,7 @@ def run_migration():
                 if 'assigned_to' not in columns:
                     conn.execute(text("""
                         ALTER TABLE task 
-                        ADD COLUMN assigned_to INTEGER REFERENCES user(id)
+                        ADD assigned_to INTEGER REFERENCES [user](id)
                     """))
                     print("✓ Added 'assigned_to' column")
                 
@@ -55,7 +55,7 @@ def run_migration():
                 if 'assigned_by' not in columns:
                     conn.execute(text("""
                         ALTER TABLE task 
-                        ADD COLUMN assigned_by INTEGER REFERENCES user(id)
+                        ADD assigned_by INTEGER REFERENCES [user](id)
                     """))
                     print("✓ Added 'assigned_by' column")
                 
@@ -63,7 +63,7 @@ def run_migration():
                 if 'assigned_at' not in columns:
                     conn.execute(text("""
                         ALTER TABLE task 
-                        ADD COLUMN assigned_at DATETIME
+                        ADD assigned_at DATETIME2
                     """))
                     print("✓ Added 'assigned_at' column")
                 

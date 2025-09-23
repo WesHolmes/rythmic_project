@@ -55,6 +55,10 @@ class AzureProductionMigration:
                 if not self._run_task_assignment_migration(db):
                     return False
                 
+                # Step 2.6: Run task workflow migration
+                if not self._run_task_workflow_migration(db):
+                    return False
+                
                 # Step 3: Create optimized indexes
                 if not self._create_indexes(db.engine):
                     return False
@@ -281,6 +285,119 @@ class AzureProductionMigration:
             logger.error(f"Task assignment migration failed: {str(e)}")
             return False
     
+    def _run_task_workflow_migration(self, db) -> bool:
+        """Run task workflow migration to add workflow columns"""
+        try:
+            logger.info("Running task workflow migration...")
+            
+            from sqlalchemy import inspect, text
+            
+            # Check if the columns already exist
+            inspector = inspect(db.engine)
+            columns = [col['name'] for col in inspector.get_columns('task')]
+            
+            new_columns = ['workflow_status', 'started_at', 'committed_at', 'completed_at']
+            existing_columns = [col for col in new_columns if col in columns]
+            
+            if existing_columns:
+                logger.info(f"Task workflow columns already exist: {existing_columns}")
+                self._log_step(f"Task workflow columns already exist: {existing_columns}")
+                return True
+            
+            columns_to_add = [col for col in new_columns if col not in columns]
+            
+            if not columns_to_add:
+                logger.info("All task workflow columns already exist. Migration not needed.")
+                self._log_step("All task workflow columns already exist")
+                return True
+            
+            # Add the new columns
+            with db.engine.connect() as conn:
+                # Add workflow_status column
+                if 'workflow_status' not in columns:
+                    try:
+                        conn.execute(text("""
+                            ALTER TABLE task 
+                            ADD workflow_status VARCHAR(20) DEFAULT 'backlog'
+                        """))
+                        logger.info("✓ Added 'workflow_status' column")
+                    except Exception as e:
+                        logger.warning(f"Could not add 'workflow_status' column: {e}")
+                
+                # Add started_at column
+                if 'started_at' not in columns:
+                    try:
+                        conn.execute(text("""
+                            ALTER TABLE task 
+                            ADD started_at DATETIME2
+                        """))
+                        logger.info("✓ Added 'started_at' column")
+                    except Exception as e:
+                        logger.warning(f"Could not add 'started_at' column: {e}")
+                
+                # Add committed_at column
+                if 'committed_at' not in columns:
+                    try:
+                        conn.execute(text("""
+                            ALTER TABLE task 
+                            ADD committed_at DATETIME2
+                        """))
+                        logger.info("✓ Added 'committed_at' column")
+                    except Exception as e:
+                        logger.warning(f"Could not add 'committed_at' column: {e}")
+                
+                # Add completed_at column
+                if 'completed_at' not in columns:
+                    try:
+                        conn.execute(text("""
+                            ALTER TABLE task 
+                            ADD completed_at DATETIME2
+                        """))
+                        logger.info("✓ Added 'completed_at' column")
+                    except Exception as e:
+                        logger.warning(f"Could not add 'completed_at' column: {e}")
+                
+                # Update existing tasks to have proper workflow_status based on their current status
+                try:
+                    conn.execute(text("""
+                        UPDATE task 
+                        SET workflow_status = CASE 
+                            WHEN status = 'backlog' THEN 'backlog'
+                            WHEN status = 'committed' THEN 'committed' 
+                            WHEN status = 'in_progress' THEN 'in_progress'
+                            WHEN status = 'blocked' THEN 'in_progress'  -- blocked tasks are still in progress
+                            WHEN status = 'completed' THEN 'completed'
+                            ELSE 'backlog'
+                        END
+                    """))
+                    logger.info("✓ Updated existing tasks with workflow_status")
+                except Exception as e:
+                    logger.warning(f"Could not update existing tasks: {e}")
+                
+                conn.commit()
+            
+            # Verify columns were added
+            inspector = inspect(db.engine)
+            updated_columns = [col['name'] for col in inspector.get_columns('task')]
+            
+            added_columns = [col for col in new_columns if col in updated_columns]
+            
+            if len(added_columns) == len(columns_to_add):
+                logger.info(f"✓ Task workflow migration completed! Added {len(added_columns)} columns.")
+                self._log_step(f"Added task workflow columns: {added_columns}")
+                
+                # Add indexes for performance
+                self._add_task_workflow_indexes(db.engine)
+                
+                return True
+            else:
+                logger.error(f"Task workflow migration partially failed. Added {len(added_columns)}/{len(columns_to_add)} columns.")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Task workflow migration failed: {str(e)}")
+            return False
+    
     def _add_task_assignment_indexes(self, engine):
         """Add database indexes for task assignment queries"""
         try:
@@ -331,6 +448,57 @@ class AzureProductionMigration:
             
         except Exception as e:
             logger.warning(f"Some task assignment indexes may not have been created: {str(e)}")
+    
+    def _add_task_workflow_indexes(self, engine):
+        """Add database indexes for task workflow queries"""
+        try:
+            from sqlalchemy import text
+            
+            # Index for task workflow lookups
+            with engine.connect() as conn:
+                # Check if indexes exist before creating them
+                try:
+                    conn.execute(text("""
+                        CREATE INDEX idx_task_workflow_status 
+                        ON task(workflow_status)
+                    """))
+                except Exception as e:
+                    if "already exists" not in str(e).lower():
+                        logger.warning(f"Could not create workflow_status index: {e}")
+                
+                try:
+                    conn.execute(text("""
+                        CREATE INDEX idx_task_started_at 
+                        ON task(started_at)
+                    """))
+                except Exception as e:
+                    if "already exists" not in str(e).lower():
+                        logger.warning(f"Could not create started_at index: {e}")
+                
+                try:
+                    conn.execute(text("""
+                        CREATE INDEX idx_task_committed_at 
+                        ON task(committed_at)
+                    """))
+                except Exception as e:
+                    if "already exists" not in str(e).lower():
+                        logger.warning(f"Could not create committed_at index: {e}")
+                
+                try:
+                    conn.execute(text("""
+                        CREATE INDEX idx_task_completed_at 
+                        ON task(completed_at)
+                    """))
+                except Exception as e:
+                    if "already exists" not in str(e).lower():
+                        logger.warning(f"Could not create completed_at index: {e}")
+                
+                conn.commit()
+            
+            logger.info("✓ Task workflow indexes created successfully")
+            
+        except Exception as e:
+            logger.warning(f"Some task workflow indexes may not have been created: {str(e)}")
     
     def _create_indexes(self, engine) -> bool:
         """Create optimized indexes for Azure database"""

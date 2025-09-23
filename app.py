@@ -283,6 +283,97 @@ db = SQLAlchemy(app)
 # SocketIO removed - app uses simple HTTP requests for better performance
 print("SocketIO removed - using lightweight HTTP-based communication")
 
+def fix_database_schema():
+    """Fix missing database columns directly"""
+    try:
+        from sqlalchemy import inspect, text
+        
+        # Check current columns
+        inspector = inspect(db.engine)
+        columns = [col['name'] for col in inspector.get_columns('task')]
+        
+        # Check if workflow columns are missing
+        workflow_columns = ['workflow_status', 'started_at', 'committed_at', 'completed_at']
+        missing_columns = [col for col in workflow_columns if col not in columns]
+        
+        if not missing_columns:
+            print("All workflow columns already exist")
+            return True
+        
+        print(f"Missing workflow columns: {missing_columns}")
+        
+        # Add missing columns
+        with db.engine.connect() as conn:
+            # Add workflow_status column
+            if 'workflow_status' not in columns:
+                try:
+                    conn.execute(text("""
+                        ALTER TABLE task 
+                        ADD workflow_status VARCHAR(20) DEFAULT 'backlog'
+                    """))
+                    print("✓ Added workflow_status column")
+                except Exception as e:
+                    print(f"Could not add workflow_status column: {e}")
+            
+            # Add started_at column
+            if 'started_at' not in columns:
+                try:
+                    conn.execute(text("""
+                        ALTER TABLE task 
+                        ADD started_at DATETIME2
+                    """))
+                    print("✓ Added started_at column")
+                except Exception as e:
+                    print(f"Could not add started_at column: {e}")
+            
+            # Add committed_at column
+            if 'committed_at' not in columns:
+                try:
+                    conn.execute(text("""
+                        ALTER TABLE task 
+                        ADD committed_at DATETIME2
+                    """))
+                    print("✓ Added committed_at column")
+                except Exception as e:
+                    print(f"Could not add committed_at column: {e}")
+            
+            # Add completed_at column
+            if 'completed_at' not in columns:
+                try:
+                    conn.execute(text("""
+                        ALTER TABLE task 
+                        ADD completed_at DATETIME2
+                    """))
+                    print("✓ Added completed_at column")
+                except Exception as e:
+                    print(f"Could not add completed_at column: {e}")
+            
+            # Update existing tasks to have proper workflow_status
+            try:
+                conn.execute(text("""
+                    UPDATE task 
+                    SET workflow_status = CASE 
+                        WHEN status = 'backlog' THEN 'backlog'
+                        WHEN status = 'committed' THEN 'committed' 
+                        WHEN status = 'in_progress' THEN 'in_progress'
+                        WHEN status = 'blocked' THEN 'in_progress'
+                        WHEN status = 'completed' THEN 'completed'
+                        ELSE 'backlog'
+                    END
+                """))
+                print("✓ Updated existing tasks with workflow_status")
+            except Exception as e:
+                print(f"Could not update existing tasks: {e}")
+            
+            conn.commit()
+        
+        print("✓ Database schema fix completed")
+        return True
+        
+    except Exception as e:
+        print(f"Database schema fix failed: {e}")
+        return False
+
 # Database Models
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -1156,30 +1247,34 @@ def projects():
         
     except Exception as e:
         print(f"Error in projects route: {e}")
-        # If there's a database schema issue, try to run migration and retry
+        # If there's a database schema issue, try to fix it directly
         try:
-            from migrations.azure_production_migration import run_production_migration
-            print("Attempting to run migration to fix schema issues...")
-            migration_success = run_production_migration()
-            if migration_success:
-                print("Migration completed, retrying projects route...")
+            print("Attempting to fix database schema issues...")
+            if fix_database_schema():
+                print("Schema fix completed, retrying projects route...")
                 # Retry the original request
                 return projects()
             else:
-                print("Migration failed, trying alternative approach...")
-                # Try to run the simpler migration
-                try:
-                    from migrations.add_task_assignment import run_migration
-                    if run_migration():
-                        print("Alternative migration completed, retrying projects route...")
-                        return projects()
-                except Exception as alt_error:
-                    print(f"Alternative migration also failed: {alt_error}")
-                
-                flash("Database schema is being updated. Please refresh the page in a moment.", "info")
-                return render_template('projects.html', projects=[])
+                print("Schema fix failed, trying migration approach...")
+                from migrations.azure_production_migration import run_production_migration
+                migration_success = run_production_migration()
+                if migration_success:
+                    print("Migration completed, retrying projects route...")
+                    return projects()
+                else:
+                    print("Migration failed, trying alternative approach...")
+                    try:
+                        from migrations.add_task_assignment import run_migration
+                        if run_migration():
+                            print("Alternative migration completed, retrying projects route...")
+                            return projects()
+                    except Exception as alt_error:
+                        print(f"Alternative migration also failed: {alt_error}")
+                    
+                    flash("Database schema is being updated. Please refresh the page in a moment.", "info")
+                    return render_template('projects.html', projects=[])
         except Exception as migration_error:
-            print(f"Migration failed: {migration_error}")
+            print(f"Schema fix failed: {migration_error}")
             flash("Database schema is being updated. Please refresh the page in a moment.", "info")
             return render_template('projects.html', projects=[])
 

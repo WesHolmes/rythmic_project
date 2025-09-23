@@ -209,6 +209,15 @@
                     <option value="completed" class="bg-gray-800 text-white">Completed</option>
                 </select>
 
+                <select id="workflow-filter"
+                    class="px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <option value="" class="bg-gray-800 text-white">All Workflows</option>
+                    <option value="backlog" class="bg-gray-800 text-white">Backlog Tasks</option>
+                    <option value="in_progress" class="bg-gray-800 text-white">In Progress Tasks</option>
+                    <option value="committed" class="bg-gray-800 text-white">Committed Tasks</option>
+                    <option value="completed" class="bg-gray-800 text-white">Completed Tasks</option>
+                </select>
+
                 <select id="priority-filter"
                     class="px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                     <option value="" class="bg-gray-800 text-white">All Priorities</option>
@@ -284,6 +293,7 @@
             <div class="task-item px-6 py-4 hover:bg-gray-800/30 transition-colors duration-200"
                 data-task-id="{{ task.id }}" data-parent-id="{{ task.parent_id or '' }}"
                 data-sort-order="{{ task.sort_order }}" data-risk-level="{{ task.risk_level }}"
+                data-is-expanded="{{ task.is_expanded|lower }}"
                 style="{% if task.parent_id %}margin-left: 20px; border-left: 2px solid #374151;{% endif %}">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center space-x-4">
@@ -294,8 +304,9 @@
 
                         <!-- Hierarchy Controls -->
                         {% if task.children %}
-                        <button class="expand-toggle text-gray-500 hover:text-gray-300" data-task-id="{{ task.id }}">
+                        <button class="expand-toggle text-gray-500 hover:text-gray-300" data-task-id="{{ task.id }}" title="{{ task.children|length }} child task{{ 's' if task.children|length != 1 else '' }}">
                             <i class="fas fa-chevron-right transition-transform duration-200"></i>
+                            <span class="ml-1 text-xs text-gray-400">({{ task.children|length }})</span>
                         </button>
                         {% else %}
                         <div class="w-4"></div>
@@ -406,6 +417,40 @@
 
                         <!-- Action Buttons -->
                         <div class="flex items-center space-x-1">
+                            <!-- Workflow Button -->
+                            {% if user_permissions.can_edit_tasks %}
+                            {% set task_data = tasks_data|selectattr('id', 'equalto', task.id)|first %}
+                            <button
+                                class="workflow-btn px-3 py-1.5 text-xs font-medium text-white rounded-md transition-all duration-200 {{ task_data.workflow_button_class if task_data else 'bg-blue-600 hover:bg-blue-700' }}"
+                                data-task-id="{{ task.id }}" 
+                                data-workflow-status="{{ task_data.workflow_status if task_data else 'backlog' }}"
+                                title="Workflow: {{ task_data.workflow_button_text if task_data else 'Start' }}">
+                                <i class="fas fa-play mr-1"></i>{{ task_data.workflow_button_text if task_data else 'Start' }}
+                            </button>
+                            
+                            <!-- Reset Workflow Button (only for completed tasks) -->
+                            {% if task_data and task_data.can_reset_workflow %}
+                            <button
+                                class="reset-workflow-btn px-3 py-1.5 text-xs font-medium text-white rounded-md transition-all duration-200 {{ task_data.reset_button_class if task_data else 'bg-red-600 hover:bg-red-700' }} opacity-90 hover:opacity-100"
+                                data-task-id="{{ task.id }}" 
+                                data-workflow-status="{{ task_data.workflow_status if task_data else 'completed' }}"
+                                title="Reset Workflow: Move back to backlog status">
+                                <i class="fas fa-undo mr-1"></i>{{ task_data.reset_button_text if task_data else 'Reset' }}
+                            </button>
+                            {% endif %}
+                            
+                            <!-- Create Child Task Button -->
+                            {% if user_permissions.can_create_tasks %}
+                            <button
+                                class="create-child-task-btn px-3 py-1.5 text-xs font-medium text-white rounded-md transition-all duration-200 bg-purple-600 hover:bg-purple-700"
+                                data-task-id="{{ task.id }}" 
+                                data-task-title="{{ task.title }}"
+                                title="Create Child Tasks">
+                                <i class="fas fa-plus mr-1"></i>Add Child
+                            </button>
+                            {% endif %}
+                            {% endif %}
+                            
                             <!-- Task Details Dropdown Toggle -->
                             <button
                                 class="task-details-toggle text-gray-500 hover:text-blue-400 p-1.5 rounded-md hover:bg-blue-500/10 transition-all duration-200"
@@ -674,6 +719,79 @@
     {% include 'sharing_modal.html' %}
     {% include 'collaborator_management.html' %}
 </div>
+
+<!-- Child Task Creation Modal -->
+<div id="child-task-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="glass rounded-2xl p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between mb-6">
+            <h3 class="text-2xl font-semibold text-white">
+                <i class="fas fa-plus mr-2 text-purple-400"></i>Create Child Tasks
+            </h3>
+            <button id="close-child-task-modal" class="text-gray-400 hover:text-white text-2xl">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <div class="mb-4 p-4 bg-gray-800/50 rounded-lg">
+            <p class="text-gray-300">
+                <strong>Parent Task:</strong> <span id="parent-task-title" class="text-white"></span>
+            </p>
+        </div>
+        
+        <div class="space-y-4">
+            <!-- Quick Add Section -->
+            <div class="mb-6">
+                <h4 class="text-lg font-semibold text-white mb-3">Quick Add Multiple Tasks</h4>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">
+                            Enter task titles (one per line):
+                        </label>
+                        <textarea 
+                            id="child-task-titles" 
+                            rows="6" 
+                            class="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                            placeholder="Task 1&#10;Task 2&#10;Task 3&#10;..."></textarea>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Priority</label>
+                            <select id="child-task-priority" class="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500">
+                                <option value="low">Low</option>
+                                <option value="medium" selected>Medium</option>
+                                <option value="high">High</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">Size</label>
+                            <select id="child-task-size" class="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500">
+                                <option value="small">Small</option>
+                                <option value="medium" selected>Medium</option>
+                                <option value="large">Large</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Preview Section -->
+            <div id="task-preview" class="hidden">
+                <h4 class="text-lg font-semibold text-white mb-3">Preview</h4>
+                <div id="preview-tasks" class="space-y-2 max-h-40 overflow-y-auto"></div>
+            </div>
+        </div>
+        
+        <div class="flex justify-end space-x-3 mt-6">
+            <button id="cancel-child-tasks" class="px-6 py-3 text-gray-400 hover:text-white transition-colors">
+                Cancel
+            </button>
+            <button id="create-child-tasks" class="btn-primary px-6 py-3 text-white rounded-xl font-semibold bg-purple-600 hover:bg-purple-700">
+                <i class="fas fa-plus mr-2"></i>Create Tasks
+            </button>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -717,6 +835,7 @@
 
     /* Force visibility for all filter dropdowns */
     #status-filter,
+    #workflow-filter,
     #priority-filter,
     #label-filter,
     #risk-filter,
@@ -727,6 +846,7 @@
     }
 
     #status-filter option,
+    #workflow-filter option,
     #priority-filter option,
     #label-filter option,
     #risk-filter option,
@@ -759,6 +879,27 @@
         margin-left: 20px;
         border-left: 2px solid #374151;
         padding-left: 16px;
+    }
+
+    /* Child task visibility and transitions */
+    .task-item[data-parent-id] {
+        transition: all 0.3s ease-in-out;
+    }
+
+    .child-task-visible {
+        display: block !important;
+        animation: slideDown 0.3s ease-out;
+    }
+
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
 
     /* Risk Level Indicators */
@@ -1168,6 +1309,9 @@
         // Advanced Task Management State
         let isDragDropEnabled = false;
         let isHierarchyView = false;
+
+        // Initialize task hierarchy state
+        initializeTaskHierarchy();
         let sortableInstance = null;
 
         // Generate Starter Tasks functionality
@@ -1219,7 +1363,7 @@
                             'Content-Type': 'application/json',
                         },
                         body: JSON.stringify({
-                            project_id: {{ project.id }}
+                            project_id: {{ project.id|tojson }}
                         })
                     });
 
@@ -1282,6 +1426,29 @@
     // Initialize risk dashboard on page load
     initializeRiskDashboard();
 
+    // Workflow button functionality
+    document.addEventListener('click', function (e) {
+        if (e.target.closest('.workflow-btn')) {
+            const button = e.target.closest('.workflow-btn');
+            const taskId = button.dataset.taskId;
+            const workflowStatus = button.dataset.workflowStatus;
+            handleWorkflowTransition(taskId, workflowStatus, button);
+        }
+        
+        if (e.target.closest('.reset-workflow-btn')) {
+            const button = e.target.closest('.reset-workflow-btn');
+            const taskId = button.dataset.taskId;
+            handleWorkflowReset(taskId, button);
+        }
+        
+        if (e.target.closest('.create-child-task-btn')) {
+            const button = e.target.closest('.create-child-task-btn');
+            const taskId = button.dataset.taskId;
+            const taskTitle = button.dataset.taskTitle;
+            showChildTaskModal(taskId, taskTitle);
+        }
+    });
+
     // Hierarchy expand/collapse functionality
     document.addEventListener('click', function (e) {
         if (e.target.closest('.expand-toggle')) {
@@ -1306,13 +1473,14 @@
 
     // Filter functionality
     const statusFilter = document.getElementById('status-filter');
+    const workflowFilter = document.getElementById('workflow-filter');
     const priorityFilter = document.getElementById('priority-filter');
     const labelFilter = document.getElementById('label-filter');
     const riskFilter = document.getElementById('risk-filter');
     const assignmentFilter = document.getElementById('assignment-filter');
     const searchInput = document.getElementById('search-tasks');
 
-    [statusFilter, priorityFilter, labelFilter, riskFilter, assignmentFilter, searchInput].forEach(element => {
+    [statusFilter, workflowFilter, priorityFilter, labelFilter, riskFilter, assignmentFilter, searchInput].forEach(element => {
         if (element) {
             element.addEventListener('change', filterTasks);
             element.addEventListener('input', filterTasks);
@@ -1321,6 +1489,7 @@
 
     function filterTasks() {
         const statusValue = statusFilter.value;
+        const workflowValue = workflowFilter.value;
         const priorityValue = priorityFilter.value;
         const labelValue = labelFilter.value;
         const riskValue = riskFilter.value;
@@ -1342,6 +1511,14 @@
             // Status filter
             if (statusValue && !taskStatus.includes(statusValue)) {
                 showTask = false;
+            }
+
+            // Workflow filter
+            if (workflowValue) {
+                const taskWorkflowStatus = taskElement.querySelector('.workflow-btn')?.dataset.workflowStatus;
+                if (taskWorkflowStatus !== workflowValue) {
+                    showTask = false;
+                }
             }
 
             // Priority filter
@@ -1409,6 +1586,7 @@
     // Clear filters function
     window.clearFilters = function () {
         statusFilter.value = '';
+        workflowFilter.value = '';
         priorityFilter.value = '';
         labelFilter.value = '';
         riskFilter.value = '';
@@ -1416,7 +1594,271 @@
         filterTasks();
     };
 
+    // Workflow transition function
+    async function handleWorkflowTransition(taskId, currentStatus, button) {
+        if (!taskId || !currentStatus) {
+            console.error('Missing task ID or workflow status');
+            return;
+        }
+
+        // Disable button during transition
+        button.disabled = true;
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Processing...';
+
+        try {
+            let endpoint;
+            if (currentStatus === 'backlog') {
+                endpoint = `/api/projects/{{ project.id|tojson }}/tasks/${taskId}/workflow/start`;
+            } else if (currentStatus === 'in_progress') {
+                endpoint = `/api/projects/{{ project.id|tojson }}/tasks/${taskId}/workflow/commit`;
+            } else if (currentStatus === 'committed') {
+                endpoint = `/api/projects/{{ project.id|tojson }}/tasks/${taskId}/workflow/complete`;
+            } else {
+                throw new Error('Invalid workflow status for transition');
+            }
+
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // Update button appearance
+                button.dataset.workflowStatus = data.workflow_status;
+                button.innerHTML = `<i class="fas fa-play mr-1"></i>${data.button_text}`;
+                button.className = `workflow-btn px-3 py-1.5 text-xs font-medium text-white rounded-md transition-all duration-200 ${data.button_class}`;
+                
+                // Show success message
+                showNotification(data.message, 'success');
+                
+                // Refresh task count
+                filterTasks();
+            } else {
+                throw new Error(data.error || 'Failed to update workflow');
+            }
+        } catch (error) {
+            console.error('Workflow transition error:', error);
+            showNotification(error.message || 'Failed to update workflow', 'error');
+            
+            // Restore original button state
+            button.innerHTML = originalText;
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    // Workflow reset function
+    async function handleWorkflowReset(taskId, button) {
+        if (!taskId) {
+            console.error('Missing task ID');
+            return;
+        }
+
+        // Confirm reset action
+        if (!confirm('Are you sure you want to reset this task workflow?\n\nThis will move the task back to "Backlog" status and you can start the workflow again from the beginning.')) {
+            return;
+        }
+
+        // Disable button during reset
+        button.disabled = true;
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Resetting...';
+
+        try {
+            const endpoint = `/api/projects/{{ project.id|tojson }}/tasks/${taskId}/workflow/reset`;
+
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // Update workflow button
+                const workflowBtn = document.querySelector(`.workflow-btn[data-task-id="${taskId}"]`);
+                if (workflowBtn) {
+                    workflowBtn.dataset.workflowStatus = data.workflow_status;
+                    workflowBtn.innerHTML = `<i class="fas fa-play mr-1"></i>${data.button_text}`;
+                    workflowBtn.className = `workflow-btn px-3 py-1.5 text-xs font-medium text-white rounded-md transition-all duration-200 ${data.button_class}`;
+                }
+                
+                // Hide reset button since task is no longer completed
+                button.style.display = 'none';
+                
+                // Show success message
+                showNotification(data.message, 'success');
+                
+                // Refresh task count
+                filterTasks();
+            } else {
+                throw new Error(data.error || 'Failed to reset workflow');
+            }
+        } catch (error) {
+            console.error('Workflow reset error:', error);
+            showNotification(error.message || 'Failed to reset workflow', 'error');
+            
+            // Restore original button state
+            button.innerHTML = originalText;
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    // Child Task Creation Functions
+    let currentParentTaskId = null;
+
+    function showChildTaskModal(parentTaskId, parentTaskTitle) {
+        currentParentTaskId = parentTaskId;
+        document.getElementById('parent-task-title').textContent = parentTaskTitle;
+        document.getElementById('child-task-modal').classList.remove('hidden');
+        
+        // Clear previous data
+        document.getElementById('child-task-titles').value = '';
+        document.getElementById('child-task-priority').value = 'medium';
+        document.getElementById('child-task-size').value = 'medium';
+        document.getElementById('task-preview').classList.add('hidden');
+        
+        // Focus on textarea
+        document.getElementById('child-task-titles').focus();
+    }
+
+    function hideChildTaskModal() {
+        document.getElementById('child-task-modal').classList.add('hidden');
+        currentParentTaskId = null;
+    }
+
+    function updateTaskPreview() {
+        const titles = document.getElementById('child-task-titles').value.trim();
+        const priority = document.getElementById('child-task-priority').value;
+        const size = document.getElementById('child-task-size').value;
+        
+        if (!titles) {
+            document.getElementById('task-preview').classList.add('hidden');
+            return;
+        }
+        
+        const taskTitles = titles.split('\n').filter(title => title.trim());
+        const previewContainer = document.getElementById('preview-tasks');
+        
+        previewContainer.innerHTML = taskTitles.map((title, index) => `
+            <div class="flex items-center space-x-3 p-3 bg-gray-800/50 rounded-lg">
+                <div class="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
+                    ${index + 1}
+                </div>
+                <div class="flex-1">
+                    <div class="text-white font-medium">${title.trim()}</div>
+                    <div class="text-sm text-gray-400">${priority} • ${size}</div>
+                </div>
+            </div>
+        `).join('');
+        
+        document.getElementById('task-preview').classList.remove('hidden');
+    }
+
+    async function createChildTasks() {
+        const titles = document.getElementById('child-task-titles').value.trim();
+        const priority = document.getElementById('child-task-priority').value;
+        const size = document.getElementById('child-task-size').value;
+        
+        if (!titles || !currentParentTaskId) {
+            showNotification('Please enter at least one task title', 'error');
+            return;
+        }
+        
+        const taskTitles = titles.split('\n').filter(title => title.trim());
+        if (taskTitles.length === 0) {
+            showNotification('Please enter at least one valid task title', 'error');
+            return;
+        }
+        
+        const createButton = document.getElementById('create-child-tasks');
+        const originalText = createButton.innerHTML;
+        createButton.disabled = true;
+        createButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Creating...';
+        
+        try {
+            const response = await fetch(`/api/projects/{{ project.id|tojson }}/tasks/batch-create`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    parent_id: currentParentTaskId,
+                    tasks: taskTitles.map(title => ({
+                        title: title.trim(),
+                        priority: priority,
+                        size: size,
+                        status: 'backlog',
+                        workflow_status: 'backlog'
+                    }))
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                showNotification(`Successfully created ${data.created_count} child tasks`, 'success');
+                hideChildTaskModal();
+                
+                // Refresh the page to show new tasks
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            } else {
+                throw new Error(data.error || 'Failed to create child tasks');
+            }
+        } catch (error) {
+            console.error('Child task creation error:', error);
+            showNotification(error.message || 'Failed to create child tasks', 'error');
+        } finally {
+            createButton.disabled = false;
+            createButton.innerHTML = originalText;
+        }
+    }
+
+    // Event listeners for child task modal
+    document.getElementById('close-child-task-modal').addEventListener('click', hideChildTaskModal);
+    document.getElementById('cancel-child-tasks').addEventListener('click', hideChildTaskModal);
+    document.getElementById('create-child-tasks').addEventListener('click', createChildTasks);
+    document.getElementById('child-task-titles').addEventListener('input', updateTaskPreview);
+    document.getElementById('child-task-priority').addEventListener('change', updateTaskPreview);
+    document.getElementById('child-task-size').addEventListener('change', updateTaskPreview);
+
+    // Close modal when clicking outside
+    document.getElementById('child-task-modal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            hideChildTaskModal();
+        }
+    });
+
     // Advanced Task Management Functions
+
+    // Initialize task hierarchy state on page load
+    function initializeTaskHierarchy() {
+        // Set up expand/collapse buttons based on database state
+        document.querySelectorAll('.expand-toggle').forEach(btn => {
+            const taskId = btn.dataset.taskId;
+            const taskItem = document.querySelector(`[data-task-id="${taskId}"].task-item`);
+            const isExpanded = taskItem.dataset.isExpanded === 'true';
+            const icon = btn.querySelector('i');
+            
+            if (isExpanded) {
+                icon.style.transform = 'rotate(90deg)';
+                showChildTasks(taskId);
+            } else {
+                icon.style.transform = 'rotate(0deg)';
+                hideChildTasks(taskId);
+            }
+        });
+    }
 
     // Toggle Hierarchy View
     function toggleHierarchyView() {
@@ -1426,16 +1868,33 @@
         if (isHierarchyView) {
             toggleHierarchyBtn.innerHTML = '<i class="fas fa-list mr-1"></i>List View';
             tasksContainer.classList.add('hierarchy-view');
-            // Show expand/collapse buttons
+            // Show expand/collapse buttons and initialize states
             document.querySelectorAll('.expand-toggle').forEach(btn => {
                 btn.style.display = 'block';
+                const taskId = btn.dataset.taskId;
+                const taskItem = document.querySelector(`[data-task-id="${taskId}"].task-item`);
+                const isExpanded = taskItem.dataset.isExpanded === 'true';
+                const icon = btn.querySelector('i');
+                
+                if (isExpanded) {
+                    icon.style.transform = 'rotate(90deg)';
+                    showChildTasks(taskId);
+                } else {
+                    icon.style.transform = 'rotate(0deg)';
+                    hideChildTasks(taskId);
+                }
             });
         } else {
             toggleHierarchyBtn.innerHTML = '<i class="fas fa-sitemap mr-1"></i>Hierarchy View';
             tasksContainer.classList.remove('hierarchy-view');
-            // Hide expand/collapse buttons
+            // Hide expand/collapse buttons and show all tasks
             document.querySelectorAll('.expand-toggle').forEach(btn => {
                 btn.style.display = 'none';
+            });
+            // Show all child tasks when not in hierarchy view
+            document.querySelectorAll('[data-parent-id]').forEach(childTask => {
+                childTask.style.display = 'block';
+                childTask.classList.add('child-task-visible');
             });
         }
     }
@@ -1490,7 +1949,7 @@
         }));
 
         try {
-            const response = await fetch(`/api/projects/{{ project.id }}/tasks/reorder`, {
+            const response = await fetch(`/api/projects/{{ project.id|tojson }}/tasks/reorder`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1510,7 +1969,7 @@
     // Toggle Task Expansion
     async function toggleTaskExpansion(taskId) {
         try {
-            const response = await fetch(`/api/projects/{{ project.id }}/tasks/${taskId}/toggle-expand`, {
+            const response = await fetch(`/api/projects/{{ project.id|tojson }}/tasks/${taskId}/toggle-expand`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1524,13 +1983,33 @@
 
                 if (data.is_expanded) {
                     icon.style.transform = 'rotate(90deg)';
+                    showChildTasks(taskId);
                 } else {
                     icon.style.transform = 'rotate(0deg)';
+                    hideChildTasks(taskId);
                 }
             }
         } catch (error) {
             alert('Error toggling task expansion: ' + error.message);
         }
+    }
+
+    // Show child tasks for a parent task
+    function showChildTasks(parentTaskId) {
+        const childTasks = document.querySelectorAll(`[data-parent-id="${parentTaskId}"]`);
+        childTasks.forEach(childTask => {
+            childTask.style.display = 'block';
+            childTask.classList.add('child-task-visible');
+        });
+    }
+
+    // Hide child tasks for a parent task
+    function hideChildTasks(parentTaskId) {
+        const childTasks = document.querySelectorAll(`[data-parent-id="${parentTaskId}"]`);
+        childTasks.forEach(childTask => {
+            childTask.style.display = 'none';
+            childTask.classList.remove('child-task-visible');
+        });
     }
 
     // Toggle Task Details Dropdown
@@ -1698,7 +2177,7 @@
     async function showLabelsModal() {
         try {
             // Fetch current labels
-            const response = await fetch(`/projects/{{ project.id }}/labels`);
+            const response = await fetch(`/projects/{{ project.id|tojson }}/labels`);
             const data = await response.json();
 
             if (response.ok) {
@@ -1789,7 +2268,7 @@
         }
 
         try {
-            const response = await fetch(`/projects/{{ project.id }}/labels`, {
+            const response = await fetch(`/projects/{{ project.id|tojson }}/labels`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1817,7 +2296,7 @@
         }
 
         try {
-            const response = await fetch(`/projects/{{ project.id }}/labels/${labelId}`, {
+            const response = await fetch(`/projects/{{ project.id|tojson }}/labels/${labelId}`, {
                 method: 'DELETE'
             });
 
@@ -1899,10 +2378,10 @@
     }
 
     // Initialize Sharing Manager
-    window.sharingManager = new SharingManager({{ project.id }}, {
-        can_manage_collaborators: {{ user_permissions.can_manage_collaborators|lower }},
-        can_manage_share_links: {{ user_permissions.can_manage_share_links|lower }},
-        can_view_collaborators: {{ user_permissions.can_view_collaborators|lower }}
+    window.sharingManager = new SharingManager({{ project.id|tojson }}, {
+        can_manage_collaborators: {{ user_permissions.can_manage_collaborators|tojson }},
+        can_manage_share_links: {{ user_permissions.can_manage_share_links|tojson }},
+        can_view_collaborators: {{ user_permissions.can_view_collaborators|tojson }}
     });
     
     // Initialize Activity Log Manager
@@ -1942,7 +2421,7 @@
     // Load collaborators when page loads
     async function loadCollaborators() {
         try {
-            const response = await fetch(`/api/projects/{{ project.id }}/collaborators`);
+            const response = await fetch(`/api/projects/{{ project.id|tojson }}/collaborators`);
             const data = await response.json();
             if (data.collaborators) {
                 collaborators = data.collaborators;
@@ -2010,7 +2489,7 @@
             let response;
             if (assignedToId) {
                 // Assign task
-                response = await fetch(`/api/projects/{{ project.id }}/tasks/${currentTaskId}/assign`, {
+                response = await fetch(`/api/projects/{{ project.id|tojson }}/tasks/${currentTaskId}/assign`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -2019,7 +2498,7 @@
                 });
             } else {
                 // Unassign task
-                response = await fetch(`/api/projects/{{ project.id }}/tasks/${currentTaskId}/unassign`, {
+                response = await fetch(`/api/projects/{{ project.id|tojson }}/tasks/${currentTaskId}/unassign`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -2054,7 +2533,7 @@
 
     async function unassignTask(taskId) {
         try {
-            const response = await fetch(`/api/projects/{{ project.id }}/tasks/${taskId}/unassign`, {
+            const response = await fetch(`/api/projects/{{ project.id|tojson }}/tasks/${taskId}/unassign`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

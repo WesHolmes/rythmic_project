@@ -448,6 +448,12 @@ class Task(db.Model):
     assigned_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # User who assigned this task
     assigned_at = db.Column(db.DateTime, nullable=True)  # When the task was assigned
     
+    # Task Workflow Fields
+    workflow_status = db.Column(db.String(20), default='backlog')  # backlog, in_progress, committed, completed
+    started_at = db.Column(db.DateTime, nullable=True)  # When task was started
+    committed_at = db.Column(db.DateTime, nullable=True)  # When task was committed
+    completed_at = db.Column(db.DateTime, nullable=True)  # When task was completed
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -472,6 +478,106 @@ class Task(db.Model):
             return all(field in columns for field in ['assigned_to', 'assigned_by', 'assigned_at'])
         except Exception:
             return False
+    
+    @classmethod
+    def has_workflow_fields(cls):
+        """Check if task workflow fields are available in the database"""
+        try:
+            from sqlalchemy import inspect
+            inspector = inspect(db.engine)
+            columns = [col['name'] for col in inspector.get_columns('task')]
+            return all(field in columns for field in ['workflow_status', 'started_at', 'committed_at', 'completed_at'])
+        except Exception:
+            return False
+    
+    def can_start(self):
+        """Check if task can be started (must be in backlog)"""
+        return self.workflow_status == 'backlog'
+    
+    def can_commit(self):
+        """Check if task can be committed (must be in progress)"""
+        return self.workflow_status == 'in_progress'
+    
+    def can_complete(self):
+        """Check if task can be completed (must be committed)"""
+        return self.workflow_status == 'committed'
+    
+    def start_workflow(self):
+        """Start the task workflow"""
+        if not self.can_start():
+            return False, f"Task cannot be started from {self.workflow_status} status"
+        
+        self.workflow_status = 'in_progress'
+        self.started_at = datetime.utcnow()
+        self.updated_at = datetime.utcnow()
+        return True, "Task started successfully"
+    
+    def commit_workflow(self):
+        """Commit the task workflow"""
+        if not self.can_commit():
+            return False, f"Task cannot be committed from {self.workflow_status} status"
+        
+        self.workflow_status = 'committed'
+        self.committed_at = datetime.utcnow()
+        self.updated_at = datetime.utcnow()
+        return True, "Task committed successfully"
+    
+    def complete_workflow(self):
+        """Complete the task workflow"""
+        if not self.can_complete():
+            return False, f"Task cannot be completed from {self.workflow_status} status"
+        
+        self.workflow_status = 'completed'
+        self.completed_at = datetime.utcnow()
+        self.updated_at = datetime.utcnow()
+        return True, "Task completed successfully"
+    
+    def get_workflow_button_text(self):
+        """Get the appropriate button text based on current workflow status"""
+        if self.workflow_status == 'backlog':
+            return 'Start'
+        elif self.workflow_status == 'in_progress':
+            return 'Commit'
+        elif self.workflow_status == 'committed':
+            return 'Complete'
+        else:
+            return 'Completed'
+    
+    def get_workflow_button_class(self):
+        """Get the appropriate button CSS class based on current workflow status"""
+        if self.workflow_status == 'backlog':
+            return 'bg-blue-600 hover:bg-blue-700'
+        elif self.workflow_status == 'in_progress':
+            return 'bg-orange-600 hover:bg-orange-700'
+        elif self.workflow_status == 'committed':
+            return 'bg-green-600 hover:bg-green-700'
+        else:
+            return 'bg-gray-600 cursor-not-allowed'
+    
+    def can_reset_workflow(self):
+        """Check if task workflow can be reset (only completed tasks)"""
+        return self.workflow_status == 'completed'
+    
+    def reset_workflow(self):
+        """Reset the task workflow back to backlog status (start of workflow)"""
+        if not self.can_reset_workflow():
+            return False, f"Task workflow cannot be reset from {self.workflow_status} status"
+        
+        # Reset to backlog status (start of workflow)
+        self.workflow_status = 'backlog'
+        self.started_at = None  # Clear all workflow timestamps
+        self.committed_at = None
+        self.completed_at = None
+        self.updated_at = datetime.utcnow()
+        return True, "Task workflow reset to backlog status"
+    
+    def get_reset_button_text(self):
+        """Get the reset button text"""
+        return 'Reset'
+    
+    def get_reset_button_class(self):
+        """Get the reset button CSS class"""
+        return 'bg-red-600 hover:bg-red-700'
     
 
 # Sharing Models
@@ -1292,8 +1398,12 @@ def view_project(id):
         'is_owner': project.owner_id == current_user.id
     }
     
-    # Get tasks with hierarchy, ordered by sort_order
-    tasks = Task.query.filter_by(project_id=id).order_by(Task.sort_order, Task.created_at).all()
+    # Get tasks with hierarchy, ordered by parent_id (nulls first), then sort_order
+    tasks = Task.query.filter_by(project_id=id).order_by(
+        Task.parent_id.asc().nullsfirst(), 
+        Task.sort_order, 
+        Task.created_at
+    ).all()
     
     # Convert tasks to dictionaries for JSON serialization
     tasks_data = []
@@ -1316,7 +1426,19 @@ def view_project(id):
             'owner_name': task.owner.name if task.owner else 'Unknown',
             'labels': [{'id': label.id, 'name': label.name, 'color': label.color, 'icon': label.icon} for label in task.labels],
             'dependencies': [{'id': dep.id, 'depends_on_id': dep.depends_on_id, 'depends_on_title': dep.depends_on.title, 'dependency_type': dep.dependency_type} for dep in task.dependencies],
-            'dependents': [{'id': dep.id, 'task_id': dep.task_id, 'task_title': dep.task.title, 'dependency_type': dep.dependency_type} for dep in task.dependents]
+            'dependents': [{'id': dep.id, 'task_id': dep.task_id, 'task_title': dep.task.title, 'dependency_type': dep.dependency_type} for dep in task.dependents],
+            # Add workflow fields
+            'workflow_status': task.workflow_status if hasattr(task, 'workflow_status') else 'backlog',
+            'started_at': task.started_at.isoformat() if hasattr(task, 'started_at') and task.started_at else None,
+            'committed_at': task.committed_at.isoformat() if hasattr(task, 'committed_at') and task.committed_at else None,
+            'completed_at': task.completed_at.isoformat() if hasattr(task, 'completed_at') and task.completed_at else None,
+            # Add workflow button information
+            'workflow_button_text': task.get_workflow_button_text() if hasattr(task, 'get_workflow_button_text') else 'Start',
+            'workflow_button_class': task.get_workflow_button_class() if hasattr(task, 'get_workflow_button_class') else 'bg-blue-600 hover:bg-blue-700',
+            # Add reset button information
+            'can_reset_workflow': task.can_reset_workflow() if hasattr(task, 'can_reset_workflow') else False,
+            'reset_button_text': task.get_reset_button_text() if hasattr(task, 'get_reset_button_text') else 'Reset',
+            'reset_button_class': task.get_reset_button_class() if hasattr(task, 'get_reset_button_class') else 'bg-red-600 hover:bg-red-700'
         }
         tasks_data.append(task_dict)
     
@@ -1467,7 +1589,8 @@ def new_task(project_id):
             mitigation_plan=request.form.get('mitigation_plan', ''),
             assigned_to=assigned_to,
             assigned_by=assigned_by,
-            assigned_at=assigned_at
+            assigned_at=assigned_at,
+            workflow_status=request.form['status']  # Set workflow_status to match status initially
         )
         db.session.add(task)
         db.session.flush()  # Get the task ID
@@ -2402,6 +2525,278 @@ def get_project_collaborators_for_assignment(project_id):
         
     except Exception as e:
         return jsonify({'error': f'Failed to get collaborators: {str(e)}'}), 500
+
+# Task Workflow Routes
+@app.route('/api/projects/<int:project_id>/tasks/<int:task_id>/workflow/start', methods=['POST'])
+@login_required
+def start_task_workflow(project_id, task_id):
+    """Start a task workflow (backlog -> in_progress)"""
+    from services.permission_manager import PermissionManager
+    
+    try:
+        # Check if workflow fields are available
+        if not Task.has_workflow_fields():
+            return jsonify({'error': 'Task workflow feature not available yet. Please try again later.'}), 503
+        
+        project = Project.query.get_or_404(project_id)
+        task = Task.query.get_or_404(task_id)
+        
+        # Check if user has permission to edit tasks and task belongs to project
+        if not PermissionManager.has_permission(current_user.id, project_id, 'edit_tasks') or task.project_id != project_id:
+            return jsonify({'error': 'Insufficient permissions to modify task workflow'}), 403
+        
+        # Start the workflow
+        success, message = task.start_workflow()
+        
+        if not success:
+            return jsonify({'error': message}), 400
+        
+        # Log the activity
+        SharingActivityLog.log_activity(
+            project_id=project_id,
+            action='task_workflow_started',
+            user_id=current_user.id,
+            details=f"Task '{task.title}' workflow started by {current_user.name}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
+        )
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': message,
+            'workflow_status': task.workflow_status,
+            'started_at': task.started_at.isoformat() if task.started_at else None,
+            'button_text': task.get_workflow_button_text(),
+            'button_class': task.get_workflow_button_class()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to start task workflow: {str(e)}'}), 500
+
+@app.route('/api/projects/<int:project_id>/tasks/<int:task_id>/workflow/commit', methods=['POST'])
+@login_required
+def commit_task_workflow(project_id, task_id):
+    """Commit a task workflow (in_progress -> committed)"""
+    from services.permission_manager import PermissionManager
+    
+    try:
+        # Check if workflow fields are available
+        if not Task.has_workflow_fields():
+            return jsonify({'error': 'Task workflow feature not available yet. Please try again later.'}), 503
+        
+        project = Project.query.get_or_404(project_id)
+        task = Task.query.get_or_404(task_id)
+        
+        # Check if user has permission to edit tasks and task belongs to project
+        if not PermissionManager.has_permission(current_user.id, project_id, 'edit_tasks') or task.project_id != project_id:
+            return jsonify({'error': 'Insufficient permissions to modify task workflow'}), 403
+        
+        # Commit the workflow
+        success, message = task.commit_workflow()
+        
+        if not success:
+            return jsonify({'error': message}), 400
+        
+        # Log the activity
+        SharingActivityLog.log_activity(
+            project_id=project_id,
+            action='task_workflow_committed',
+            user_id=current_user.id,
+            details=f"Task '{task.title}' workflow committed by {current_user.name}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
+        )
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': message,
+            'workflow_status': task.workflow_status,
+            'committed_at': task.committed_at.isoformat() if task.committed_at else None,
+            'button_text': task.get_workflow_button_text(),
+            'button_class': task.get_workflow_button_class()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to commit task workflow: {str(e)}'}), 500
+
+@app.route('/api/projects/<int:project_id>/tasks/<int:task_id>/workflow/complete', methods=['POST'])
+@login_required
+def complete_task_workflow(project_id, task_id):
+    """Complete a task workflow (committed -> completed)"""
+    from services.permission_manager import PermissionManager
+    
+    try:
+        # Check if workflow fields are available
+        if not Task.has_workflow_fields():
+            return jsonify({'error': 'Task workflow feature not available yet. Please try again later.'}), 503
+        
+        project = Project.query.get_or_404(project_id)
+        task = Task.query.get_or_404(task_id)
+        
+        # Check if user has permission to edit tasks and task belongs to project
+        if not PermissionManager.has_permission(current_user.id, project_id, 'edit_tasks') or task.project_id != project_id:
+            return jsonify({'error': 'Insufficient permissions to modify task workflow'}), 403
+        
+        # Complete the workflow
+        success, message = task.complete_workflow()
+        
+        if not success:
+            return jsonify({'error': message}), 400
+        
+        # Log the activity
+        SharingActivityLog.log_activity(
+            project_id=project_id,
+            action='task_workflow_completed',
+            user_id=current_user.id,
+            details=f"Task '{task.title}' workflow completed by {current_user.name}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
+        )
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': message,
+            'workflow_status': task.workflow_status,
+            'completed_at': task.completed_at.isoformat() if task.completed_at else None,
+            'button_text': task.get_workflow_button_text(),
+            'button_class': task.get_workflow_button_class()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to complete task workflow: {str(e)}'}), 500
+
+@app.route('/api/projects/<int:project_id>/tasks/<int:task_id>/workflow/reset', methods=['POST'])
+@login_required
+def reset_task_workflow(project_id, task_id):
+    """Reset a task workflow (completed -> committed)"""
+    from services.permission_manager import PermissionManager
+    
+    try:
+        # Check if workflow fields are available
+        if not Task.has_workflow_fields():
+            return jsonify({'error': 'Task workflow feature not available yet. Please try again later.'}), 503
+        
+        project = Project.query.get_or_404(project_id)
+        task = Task.query.get_or_404(task_id)
+        
+        # Check if user has permission to edit tasks and task belongs to project
+        if not PermissionManager.has_permission(current_user.id, project_id, 'edit_tasks') or task.project_id != project_id:
+            return jsonify({'error': 'Insufficient permissions to modify task workflow'}), 403
+        
+        # Reset the workflow
+        success, message = task.reset_workflow()
+        
+        if not success:
+            return jsonify({'error': message}), 400
+        
+        # Log the activity
+        SharingActivityLog.log_activity(
+            project_id=project_id,
+            action='task_workflow_reset',
+            user_id=current_user.id,
+            details=f"Task '{task.title}' workflow reset by {current_user.name}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
+        )
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': message,
+            'workflow_status': task.workflow_status,
+            'completed_at': task.completed_at.isoformat() if task.completed_at else None,
+            'button_text': task.get_workflow_button_text(),
+            'button_class': task.get_workflow_button_class(),
+            'can_reset': task.can_reset_workflow(),
+            'reset_button_text': task.get_reset_button_text(),
+            'reset_button_class': task.get_reset_button_class()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to reset task workflow: {str(e)}'}), 500
+
+@app.route('/api/projects/<int:project_id>/tasks/batch-create', methods=['POST'])
+@login_required
+def batch_create_child_tasks(project_id):
+    """Create multiple child tasks at once"""
+    from services.permission_manager import PermissionManager
+    
+    try:
+        project = Project.query.get_or_404(project_id)
+        
+        # Check if user has permission to create tasks
+        if not PermissionManager.has_permission(current_user.id, project_id, 'create_tasks'):
+            return jsonify({'error': 'Insufficient permissions to create tasks'}), 403
+        
+        data = request.get_json()
+        parent_id = data.get('parent_id')
+        tasks_data = data.get('tasks', [])
+        
+        if not parent_id:
+            return jsonify({'error': 'parent_id is required'}), 400
+        
+        if not tasks_data:
+            return jsonify({'error': 'At least one task is required'}), 400
+        
+        # Verify parent task exists and belongs to project
+        parent_task = Task.query.filter_by(id=parent_id, project_id=project_id).first()
+        if not parent_task:
+            return jsonify({'error': 'Parent task not found'}), 404
+        
+        # Get the next sort order for this project
+        max_sort_order = db.session.query(db.func.max(Task.sort_order)).filter_by(project_id=project_id).scalar() or 0
+        
+        created_tasks = []
+        
+        for i, task_data in enumerate(tasks_data):
+            if not task_data.get('title', '').strip():
+                continue  # Skip empty titles
+            
+            task = Task(
+                title=task_data['title'].strip(),
+                description=task_data.get('description', ''),
+                project_id=project_id,
+                owner_id=current_user.id,
+                parent_id=parent_id,
+                priority=task_data.get('priority', 'medium'),
+                size=task_data.get('size', 'medium'),
+                status=task_data.get('status', 'backlog'),
+                workflow_status=task_data.get('workflow_status', 'backlog'),
+                sort_order=max_sort_order + i + 1,
+                risk_level=task_data.get('risk_level', 'low')
+            )
+            db.session.add(task)
+            created_tasks.append(task)
+        
+        # Log the activity
+        SharingActivityLog.log_activity(
+            project_id=project_id,
+            action='child_tasks_created',
+            user_id=current_user.id,
+            details=f"Created {len(created_tasks)} child tasks for '{parent_task.title}' by {current_user.name}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
+        )
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': f'Successfully created {len(created_tasks)} child tasks',
+            'created_count': len(created_tasks),
+            'parent_task_id': parent_id,
+            'parent_task_title': parent_task.title
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to create child tasks: {str(e)}'}), 500
 
 # Sharing invitation acceptance routes
 @app.route('/sharing/accept/<token>')

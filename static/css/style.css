@@ -484,6 +484,45 @@ input[type="file"]::file-selector-button:hover {
     box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
 }
 
+/* Label Management Input Styling - High specificity to override general rules */
+input#new-label-name, input#edit-label-name {
+    color: #ffffff !important;
+    background-color: #374151 !important;
+    border: 1px solid #6b7280 !important;
+}
+
+input#new-label-name:focus, input#edit-label-name:focus {
+    color: #ffffff !important;
+    background-color: #374151 !important;
+    border-color: #3b82f6 !important;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3) !important;
+    outline: none !important;
+}
+
+input#new-label-name::placeholder, input#edit-label-name::placeholder {
+    color: #d1d5db !important;
+}
+
+/* Label Management Select Styling - High specificity to override general rules */
+select#new-label-icon, select#edit-label-icon {
+    color: #ffffff !important;
+    background-color: #374151 !important;
+    border: 1px solid #6b7280 !important;
+}
+
+select#new-label-icon:focus, select#edit-label-icon:focus {
+    color: #ffffff !important;
+    background-color: #374151 !important;
+    border-color: #3b82f6 !important;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3) !important;
+    outline: none !important;
+}
+
+/* Override the general input text color rule for label inputs specifically */
+input[type="text"]#new-label-name, input[type="text"]#edit-label-name {
+    color: #ffffff !important;
+}
+
 /* Sharing Success States */
 .sharing-success {
     background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(16, 185, 129, 0.1));

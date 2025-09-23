@@ -199,15 +199,6 @@
         <div class="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
             <!-- Filter Controls -->
             <div class="flex flex-wrap gap-3">
-                <select id="status-filter"
-                    class="px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                    <option value="" class="bg-gray-800 text-white">All Statuses</option>
-                    <option value="backlog" class="bg-gray-800 text-white">Backlog</option>
-                    <option value="committed" class="bg-gray-800 text-white">Committed</option>
-                    <option value="in_progress" class="bg-gray-800 text-white">In Progress</option>
-                    <option value="blocked" class="bg-gray-800 text-white">Blocked</option>
-                    <option value="completed" class="bg-gray-800 text-white">Completed</option>
-                </select>
 
                 <select id="workflow-filter"
                     class="px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
@@ -1472,7 +1463,6 @@
     });
 
     // Filter functionality
-    const statusFilter = document.getElementById('status-filter');
     const workflowFilter = document.getElementById('workflow-filter');
     const priorityFilter = document.getElementById('priority-filter');
     const labelFilter = document.getElementById('label-filter');
@@ -1480,7 +1470,7 @@
     const assignmentFilter = document.getElementById('assignment-filter');
     const searchInput = document.getElementById('search-tasks');
 
-    [statusFilter, workflowFilter, priorityFilter, labelFilter, riskFilter, assignmentFilter, searchInput].forEach(element => {
+    [workflowFilter, priorityFilter, labelFilter, riskFilter, assignmentFilter, searchInput].forEach(element => {
         if (element) {
             element.addEventListener('change', filterTasks);
             element.addEventListener('input', filterTasks);
@@ -1488,7 +1478,6 @@
     });
 
     function filterTasks() {
-        const statusValue = statusFilter.value;
         const workflowValue = workflowFilter.value;
         const priorityValue = priorityFilter.value;
         const labelValue = labelFilter.value;
@@ -1501,17 +1490,11 @@
 
         taskElements.forEach(taskElement => {
             const taskTitle = taskElement.querySelector('h3 a').textContent.toLowerCase();
-            const taskStatus = taskElement.querySelector('.text-red-400, .text-yellow-400, .text-green-400, .text-blue-400, .text-gray-500')?.parentElement?.textContent.toLowerCase() || '';
             const taskPriority = taskElement.querySelector('.text-red-400, .text-yellow-400, .text-green-400')?.parentElement?.textContent.toLowerCase() || '';
             const taskLabels = Array.from(taskElement.querySelectorAll('[style*="background-color"]')).map(label => label.textContent.toLowerCase());
             const taskRiskLevel = taskElement.dataset.riskLevel || 'low';
 
             let showTask = true;
-
-            // Status filter
-            if (statusValue && !taskStatus.includes(statusValue)) {
-                showTask = false;
-            }
 
             // Workflow filter
             if (workflowValue) {
@@ -1585,11 +1568,11 @@
 
     // Clear filters function
     window.clearFilters = function () {
-        statusFilter.value = '';
         workflowFilter.value = '';
         priorityFilter.value = '';
         labelFilter.value = '';
         riskFilter.value = '';
+        assignmentFilter.value = '';
         searchInput.value = '';
         filterTasks();
     };
@@ -2176,6 +2159,9 @@
 
     async function showLabelsModal() {
         try {
+            // Clear any existing modals first
+            document.querySelectorAll('.fixed').forEach(modal => modal.remove());
+            
             // Fetch current labels
             const response = await fetch(`/projects/{{ project.id|tojson }}/labels`);
             const data = await response.json();
@@ -2207,10 +2193,10 @@
                     <h4 class="text-lg font-semibold text-white mb-4">Add New Label</h4>
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <input type="text" id="new-label-name" placeholder="Label name" 
-                               class="px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400">
+                               class="px-3 py-2 rounded-lg focus:outline-none">
                         <input type="color" id="new-label-color" value="#3B82F6" 
                                class="px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg">
-                        <select id="new-label-icon" class="px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white">
+                        <select id="new-label-icon" class="px-3 py-2 rounded-lg focus:outline-none">
                             <option value="fas fa-tag">Tag</option>
                             <option value="fas fa-bug">Bug</option>
                             <option value="fas fa-star">Star</option>
@@ -2279,14 +2265,112 @@
             const data = await response.json();
 
             if (response.ok) {
-                // Refresh the modal
-                document.querySelector('.fixed').remove();
+                // Clear all existing modals and refresh
+                document.querySelectorAll('.fixed').forEach(modal => modal.remove());
                 showLabelsModal();
             } else {
                 alert('Error: ' + data.error);
             }
         } catch (error) {
             alert('Error creating label: ' + error.message);
+        }
+    };
+
+    window.editLabel = async function (labelId) {
+        // Find the label data
+        const labels = await fetch(`/projects/{{ project.id|tojson }}/labels`).then(r => r.json()).then(d => d.labels);
+        const label = labels.find(l => l.id === labelId);
+        
+        if (!label) {
+            alert('Label not found');
+            return;
+        }
+
+        // Create edit modal
+        const editModal = document.createElement('div');
+        editModal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+        editModal.innerHTML = `
+            <div class="bg-gray-800 rounded-2xl p-8 max-w-2xl mx-4">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-2xl font-bold text-white">Edit Label</h3>
+                    <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-white">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Label Name</label>
+                        <input type="text" id="edit-label-name" value="${label.name}" 
+                               class="w-full px-3 py-2 rounded-lg focus:outline-none">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Color</label>
+                        <input type="color" id="edit-label-color" value="${label.color}" 
+                               class="px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Icon</label>
+                        <select id="edit-label-icon" class="w-full px-3 py-2 rounded-lg focus:outline-none">
+                            <option value="fas fa-tag" ${label.icon === 'fas fa-tag' ? 'selected' : ''}>Tag</option>
+                            <option value="fas fa-bug" ${label.icon === 'fas fa-bug' ? 'selected' : ''}>Bug</option>
+                            <option value="fas fa-star" ${label.icon === 'fas fa-star' ? 'selected' : ''}>Star</option>
+                            <option value="fas fa-fire" ${label.icon === 'fas fa-fire' ? 'selected' : ''}>Fire</option>
+                            <option value="fas fa-heart" ${label.icon === 'fas fa-heart' ? 'selected' : ''}>Heart</option>
+                            <option value="fas fa-rocket" ${label.icon === 'fas fa-rocket' ? 'selected' : ''}>Rocket</option>
+                            <option value="fas fa-lightbulb" ${label.icon === 'fas fa-lightbulb' ? 'selected' : ''}>Lightbulb</option>
+                            <option value="fas fa-check" ${label.icon === 'fas fa-check' ? 'selected' : ''}>Check</option>
+                            <option value="fas fa-exclamation" ${label.icon === 'fas fa-exclamation' ? 'selected' : ''}>Exclamation</option>
+                            <option value="fas fa-question" ${label.icon === 'fas fa-question' ? 'selected' : ''}>Question</option>
+                        </select>
+                    </div>
+                    
+                    <div class="flex justify-end space-x-4 pt-4">
+                        <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
+                            Cancel
+                        </button>
+                        <button onclick="updateLabel(${labelId})" class="btn-primary text-white px-6 py-2 rounded-lg font-semibold">
+                            <i class="fas fa-save mr-2"></i>Update Label
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(editModal);
+    };
+
+    window.updateLabel = async function (labelId) {
+        const name = document.getElementById('edit-label-name').value.trim();
+        const color = document.getElementById('edit-label-color').value;
+        const icon = document.getElementById('edit-label-icon').value;
+
+        if (!name) {
+            alert('Please enter a label name');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/projects/{{ project.id|tojson }}/labels/${labelId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ name, color, icon })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // Clear all existing modals and refresh
+                document.querySelectorAll('.fixed').forEach(modal => modal.remove());
+                showLabelsModal();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch (error) {
+            alert('Error updating label: ' + error.message);
         }
     };
 
@@ -2303,8 +2387,8 @@
             const data = await response.json();
 
             if (response.ok) {
-                // Refresh the modal
-                document.querySelector('.fixed').remove();
+                // Clear all existing modals and refresh
+                document.querySelectorAll('.fixed').forEach(modal => modal.remove());
                 showLabelsModal();
             } else {
                 alert('Error: ' + data.error);

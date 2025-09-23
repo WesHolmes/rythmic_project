@@ -2048,10 +2048,8 @@ def create_label(project_id):
     if not name:
         return jsonify({'error': 'Label name is required'}), 400
     
-    # Check if label name already exists in this project
-    existing_label = Label.query.filter_by(project_id=project_id, name=name).first()
-    if existing_label:
-        return jsonify({'error': 'Label with this name already exists'}), 400
+    # Allow duplicate label names - users can have multiple labels with same name
+    # (removed duplicate name check)
     
     # Check label limit (50 per project as per PRD)
     label_count = Label.query.filter_by(project_id=project_id).count()
@@ -2099,10 +2097,8 @@ def update_label(project_id, label_id):
     if not name:
         return jsonify({'error': 'Label name is required'}), 400
     
-    # Check if another label with this name exists
-    existing_label = Label.query.filter_by(project_id=project_id, name=name).filter(Label.id != label_id).first()
-    if existing_label:
-        return jsonify({'error': 'Label with this name already exists'}), 400
+    # Allow duplicate label names - users can have multiple labels with same name
+    # (removed duplicate name check)
     
     label.name = name
     label.color = color

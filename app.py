@@ -3400,16 +3400,6 @@ def azure_services_status():
             'details': str(e)
         }), 500
 
-# Initialize database tables
-def create_tables():
-    """Create database tables if they don't exist"""
-    try:
-        with app.app_context():
-            db.create_all()
-            print("Database tables created successfully")
-    except Exception as e:
-        print(f"Error creating database tables: {e}")
-
 if __name__ == '__main__':
     create_tables()
     # Use standard Flask run - SocketIO removed

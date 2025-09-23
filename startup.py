@@ -111,7 +111,7 @@ def setup_azure_services():
     logger.info("Setting up Azure services...")
     
     try:
-        from azure_services_config import get_azure_services_status
+        from services.azure_services_config import get_azure_services_status
         
         status = get_azure_services_status()
         enabled_services = status.get('enabled_services', [])

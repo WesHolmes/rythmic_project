@@ -311,16 +311,34 @@ class AzureProductionMigration:
         try:
             logger.info("Creating database indexes...")
             
-            from azure_database_config import SharingDatabaseIndexes
-            created_count, errors = SharingDatabaseIndexes.create_indexes(engine)
-            
-            if errors:
-                logger.warning(f"Some indexes failed to create: {len(errors)} errors")
-                for error in errors:
-                    logger.warning(f"  - {error}")
-            
-            logger.info(f"✓ Created {created_count} database indexes")
-            self._log_step(f"Created {created_count} indexes with {len(errors)} errors")
+            # Create basic indexes directly instead of using missing azure_database_config
+            try:
+                with engine.connect() as conn:
+                    # Create basic indexes for sharing tables
+                    indexes_to_create = [
+                        "CREATE INDEX IF NOT EXISTS idx_project_collaborators_project_id ON project_collaborators(project_id)",
+                        "CREATE INDEX IF NOT EXISTS idx_project_collaborators_user_id ON project_collaborators(user_id)",
+                        "CREATE INDEX IF NOT EXISTS idx_sharing_tokens_project_id ON sharing_tokens(project_id)",
+                        "CREATE INDEX IF NOT EXISTS idx_sharing_tokens_token ON sharing_tokens(token)",
+                        "CREATE INDEX IF NOT EXISTS idx_sharing_activity_log_project_id ON sharing_activity_log(project_id)",
+                        "CREATE INDEX IF NOT EXISTS idx_sharing_activity_log_created_at ON sharing_activity_log(created_at)"
+                    ]
+                    
+                    created_count = 0
+                    for index_sql in indexes_to_create:
+                        try:
+                            conn.execute(text(index_sql))
+                            created_count += 1
+                        except Exception as e:
+                            logger.warning(f"Failed to create index: {e}")
+                    
+                    conn.commit()
+                
+                logger.info(f"✓ Created {created_count} database indexes")
+                self._log_step(f"Created {created_count} indexes")
+                
+            except Exception as e:
+                logger.warning(f"Index creation had issues: {e}")
             
             # Index creation errors are not fatal for migration
             return True
@@ -334,15 +352,9 @@ class AzureProductionMigration:
         try:
             logger.info("Creating backup and cleanup procedures...")
             
-            from azure_database_config import DatabaseBackupManager
-            procedures = DatabaseBackupManager.create_backup_cleanup_procedures(engine)
-            
-            if procedures:
-                logger.info(f"✓ Created {len(procedures)} cleanup procedures: {', '.join(procedures)}")
-                self._log_step(f"Created cleanup procedures: {', '.join(procedures)}")
-            else:
-                logger.info("No cleanup procedures created (may not be supported by database)")
-                self._log_step("Cleanup procedures not supported by database")
+            # Skip backup procedures since azure_database_config doesn't exist
+            logger.info("Skipping backup procedures (not implemented)")
+            self._log_step("Backup procedures skipped")
             
             return True
             

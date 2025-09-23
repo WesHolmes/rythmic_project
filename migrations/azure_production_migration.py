@@ -288,25 +288,42 @@ class AzureProductionMigration:
             
             # Index for task assignment lookups
             with engine.connect() as conn:
-                conn.execute(text("""
-                    CREATE INDEX IF NOT EXISTS idx_task_assigned_to 
-                    ON task(assigned_to)
-                """))
+                # Check if indexes exist before creating them
+                try:
+                    conn.execute(text("""
+                        CREATE INDEX idx_task_assigned_to 
+                        ON task(assigned_to)
+                    """))
+                except Exception as e:
+                    if "already exists" not in str(e).lower():
+                        logger.warning(f"Could not create assigned_to index: {e}")
                 
-                conn.execute(text("""
-                    CREATE INDEX IF NOT EXISTS idx_task_assigned_by 
-                    ON task(assigned_by)
-                """))
+                try:
+                    conn.execute(text("""
+                        CREATE INDEX idx_task_assigned_by 
+                        ON task(assigned_by)
+                    """))
+                except Exception as e:
+                    if "already exists" not in str(e).lower():
+                        logger.warning(f"Could not create assigned_by index: {e}")
                 
-                conn.execute(text("""
-                    CREATE INDEX IF NOT EXISTS idx_task_assigned_at 
-                    ON task(assigned_at)
-                """))
+                try:
+                    conn.execute(text("""
+                        CREATE INDEX idx_task_assigned_at 
+                        ON task(assigned_at)
+                    """))
+                except Exception as e:
+                    if "already exists" not in str(e).lower():
+                        logger.warning(f"Could not create assigned_at index: {e}")
                 
-                conn.execute(text("""
-                    CREATE INDEX IF NOT EXISTS idx_task_project_assigned 
-                    ON task(project_id, assigned_to)
-                """))
+                try:
+                    conn.execute(text("""
+                        CREATE INDEX idx_task_project_assigned 
+                        ON task(project_id, assigned_to)
+                    """))
+                except Exception as e:
+                    if "already exists" not in str(e).lower():
+                        logger.warning(f"Could not create project_assigned index: {e}")
                 
                 conn.commit()
             
@@ -322,15 +339,17 @@ class AzureProductionMigration:
             
             # Create basic indexes directly instead of using missing azure_database_config
             try:
+                from sqlalchemy import text
+                
                 with engine.connect() as conn:
-                    # Create basic indexes for sharing tables
+                    # Create basic indexes for sharing tables (SQL Server doesn't support IF NOT EXISTS)
                     indexes_to_create = [
-                        "CREATE INDEX IF NOT EXISTS idx_project_collaborators_project_id ON project_collaborators(project_id)",
-                        "CREATE INDEX IF NOT EXISTS idx_project_collaborators_user_id ON project_collaborators(user_id)",
-                        "CREATE INDEX IF NOT EXISTS idx_sharing_tokens_project_id ON sharing_tokens(project_id)",
-                        "CREATE INDEX IF NOT EXISTS idx_sharing_tokens_token ON sharing_tokens(token)",
-                        "CREATE INDEX IF NOT EXISTS idx_sharing_activity_log_project_id ON sharing_activity_log(project_id)",
-                        "CREATE INDEX IF NOT EXISTS idx_sharing_activity_log_created_at ON sharing_activity_log(created_at)"
+                        "CREATE INDEX idx_project_collaborators_project_id ON project_collaborators(project_id)",
+                        "CREATE INDEX idx_project_collaborators_user_id ON project_collaborators(user_id)",
+                        "CREATE INDEX idx_sharing_tokens_project_id ON sharing_tokens(project_id)",
+                        "CREATE INDEX idx_sharing_tokens_token ON sharing_tokens(token)",
+                        "CREATE INDEX idx_sharing_activity_log_project_id ON sharing_activity_log(project_id)",
+                        "CREATE INDEX idx_sharing_activity_log_created_at ON sharing_activity_log(created_at)"
                     ]
                     
                     created_count = 0
@@ -339,7 +358,8 @@ class AzureProductionMigration:
                             conn.execute(text(index_sql))
                             created_count += 1
                         except Exception as e:
-                            logger.warning(f"Failed to create index: {e}")
+                            if "already exists" not in str(e).lower():
+                                logger.warning(f"Failed to create index: {e}")
                     
                     conn.commit()
                 
@@ -400,7 +420,7 @@ class AzureProductionMigration:
                 # Update statistics for better query performance
                 tables_to_optimize = [
                     'project_collaborators', 'sharing_tokens', 'sharing_activity_log', 
-                    'active_sessions', 'task', 'project', 'user', 'label', 'task_labels',
+                    'active_sessions', 'task', 'project', '[user]', 'label', 'task_labels',
                     'task_dependency', 'invitation_notifications'
                 ]
                 

@@ -102,25 +102,42 @@ def add_indexes(db):
         
         # Index for task assignment lookups
         with db.engine.connect() as conn:
-            conn.execute(text("""
-                CREATE INDEX IF NOT EXISTS idx_task_assigned_to 
-                ON task(assigned_to)
-            """))
+            # SQL Server doesn't support IF NOT EXISTS, so we'll try to create and catch errors
+            try:
+                conn.execute(text("""
+                    CREATE INDEX idx_task_assigned_to 
+                    ON task(assigned_to)
+                """))
+            except Exception as e:
+                if "already exists" not in str(e).lower():
+                    print(f"Warning: Could not create assigned_to index: {e}")
             
-            conn.execute(text("""
-                CREATE INDEX IF NOT EXISTS idx_task_assigned_by 
-                ON task(assigned_by)
-            """))
+            try:
+                conn.execute(text("""
+                    CREATE INDEX idx_task_assigned_by 
+                    ON task(assigned_by)
+                """))
+            except Exception as e:
+                if "already exists" not in str(e).lower():
+                    print(f"Warning: Could not create assigned_by index: {e}")
             
-            conn.execute(text("""
-                CREATE INDEX IF NOT EXISTS idx_task_assigned_at 
-                ON task(assigned_at)
-            """))
+            try:
+                conn.execute(text("""
+                    CREATE INDEX idx_task_assigned_at 
+                    ON task(assigned_at)
+                """))
+            except Exception as e:
+                if "already exists" not in str(e).lower():
+                    print(f"Warning: Could not create assigned_at index: {e}")
             
-            conn.execute(text("""
-                CREATE INDEX IF NOT EXISTS idx_task_project_assigned 
-                ON task(project_id, assigned_to)
-            """))
+            try:
+                conn.execute(text("""
+                    CREATE INDEX idx_task_project_assigned 
+                    ON task(project_id, assigned_to)
+                """))
+            except Exception as e:
+                if "already exists" not in str(e).lower():
+                    print(f"Warning: Could not create project_assigned index: {e}")
             
             conn.commit()
         

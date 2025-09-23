@@ -679,13 +679,33 @@ class InvitationNotification(db.Model):
         return notification
 
 # Initialize database tables
-try:
-    with app.app_context():
-        db.create_all()
-        print("Database tables created successfully")
-except Exception as e:
-    print(f"Error creating database tables: {e}")
-    # Don't raise - let the app continue
+def initialize_database():
+    """Initialize database tables with migration support"""
+    try:
+        with app.app_context():
+            # Create tables if they don't exist
+            db.create_all()
+            print("Database tables created successfully")
+            
+            # Run task assignment migration
+            try:
+                from migrations.azure_production_migration import run_production_migration
+                migration_result = run_production_migration()
+                if migration_result:
+                    print("Azure production migration completed successfully")
+                else:
+                    print("Azure production migration completed with warnings")
+            except ImportError:
+                print("No Azure migration script found, skipping")
+            except Exception as e:
+                print(f"Azure migration failed, but continuing: {e}")
+                
+    except Exception as e:
+        print(f"Error creating database tables: {e}")
+        # Don't raise - let the app continue
+
+# Run database initialization
+initialize_database()
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -1004,27 +1024,43 @@ def authorize_github():
 def projects():
     from services.permission_manager import PermissionManager
     
-    # Get all accessible projects (owned + shared)
-    accessible_project_ids = PermissionManager.get_accessible_projects(current_user.id)
-    
-    if accessible_project_ids:
-        projects = Project.query.filter(Project.id.in_(accessible_project_ids)).all()
-    else:
-        projects = []
-    
-    # Add role information for each project
-    projects_with_roles = []
-    for project in projects:
-        user_role = PermissionManager.get_user_role(current_user.id, project.id)
-        project_data = {
-            'project': project,
-            'user_role': user_role,
-            'is_owner': project.owner_id == current_user.id,
-            'collaborator_count': project.get_collaborator_count()
-        }
-        projects_with_roles.append(project_data)
-    
-    return render_template('projects.html', projects=projects_with_roles)
+    try:
+        # Get all accessible projects (owned + shared)
+        accessible_project_ids = PermissionManager.get_accessible_projects(current_user.id)
+        
+        if accessible_project_ids:
+            projects = Project.query.filter(Project.id.in_(accessible_project_ids)).all()
+        else:
+            projects = []
+        
+        # Add role information for each project
+        projects_with_roles = []
+        for project in projects:
+            user_role = PermissionManager.get_user_role(current_user.id, project.id)
+            project_data = {
+                'project': project,
+                'user_role': user_role,
+                'is_owner': project.owner_id == current_user.id,
+                'collaborator_count': project.get_collaborator_count()
+            }
+            projects_with_roles.append(project_data)
+        
+        return render_template('projects.html', projects=projects_with_roles)
+        
+    except Exception as e:
+        print(f"Error in projects route: {e}")
+        # If there's a database schema issue, try to run migration and retry
+        try:
+            from migrations.azure_production_migration import run_production_migration
+            print("Attempting to run migration to fix schema issues...")
+            run_production_migration()
+            print("Migration completed, retrying projects route...")
+            # Retry the original request
+            return projects()
+        except Exception as migration_error:
+            print(f"Migration failed: {migration_error}")
+            flash("Database schema is being updated. Please refresh the page in a moment.", "info")
+            return render_template('projects.html', projects=[])
 
 @app.route('/test-css')
 def test_css():

@@ -69,9 +69,19 @@ def get_azure_sql_url() -> Optional[str]:
     database = os.environ.get('AZURE_SQL_DATABASE')
     
     if all([server, user, password, database]):
-        # Generate Azure SQL connection URL with pyodbc
+        # Generate Azure SQL connection URL with pyodbc and Azure optimizations
         logger.info("Using Azure SQL Database with pyodbc driver")
-        return f"mssql+pyodbc://{user}:{password}@{server}:1433/{database}?driver=ODBC+Driver+18+for+SQL+Server"
+        # Azure SQL Database optimized connection string
+        connection_params = [
+            "driver=ODBC+Driver+18+for+SQL+Server",
+            "Encrypt=yes",
+            "TrustServerCertificate=no",
+            "Connection+Timeout=30",
+            "Command+Timeout=30",
+            "MultipleActiveResultSets=False",
+            "ColumnEncryptionSetting=Disabled"
+        ]
+        return f"mssql+pyodbc://{user}:{password}@{server}:1433/{database}?{'&'.join(connection_params)}"
     
     return None
 
@@ -151,13 +161,31 @@ def validate_connection(database_url: str, timeout: int = 10) -> Tuple[bool, Opt
         return True, None  # Skip validation if SQLAlchemy not available
         
     try:
-        # Create engine with timeout
-        engine = create_engine(
-            database_url,
-            connect_args={'timeout': timeout} if 'sqlite' in database_url else {},
-            pool_timeout=timeout,
-            pool_recycle=3600  # Recycle connections every hour
-        )
+        # Create engine with Azure-optimized settings
+        if 'mssql' in database_url or 'sqlserver' in database_url:
+            # Azure SQL Database optimized configuration
+            engine = create_engine(
+                database_url,
+                connect_args={
+                    'timeout': timeout,
+                    'autocommit': False,
+                    'isolation_level': 'READ_COMMITTED'
+                },
+                pool_size=10,  # Azure SQL Database recommended pool size
+                max_overflow=20,  # Allow additional connections
+                pool_timeout=timeout,
+                pool_recycle=1800,  # Recycle connections every 30 minutes for Azure
+                pool_pre_ping=True,  # Verify connections before use
+                echo=False  # Set to True for debugging
+            )
+        else:
+            # Standard configuration for other databases
+            engine = create_engine(
+                database_url,
+                connect_args={'timeout': timeout} if 'sqlite' in database_url else {},
+                pool_timeout=timeout,
+                pool_recycle=3600  # Recycle connections every hour
+            )
         
         # Test connection
         with engine.connect() as connection:

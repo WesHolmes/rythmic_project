@@ -13,6 +13,7 @@ import secrets
 import re
 from authlib.integrations.flask_client import OAuth
 from services.ai_service import AIAssistant
+from sqlalchemy import text
 
 # Load environment variables
 load_dotenv()
@@ -234,12 +235,29 @@ except ImportError as e:
 except Exception as e:
     print(f"Error configuring Azure services: {e}")
 
-# Database configuration with fallback
+# Database configuration with Azure optimizations
 try:
     from services.database_config import get_database_url, get_database_info
     database_url = get_database_url()
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
-    print(f"Using database configuration from database_config.py")
+    
+    # Azure SQL Database specific optimizations
+    if 'mssql' in database_url or 'sqlserver' in database_url:
+        app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+            'pool_size': 10,
+            'max_overflow': 20,
+            'pool_timeout': 30,
+            'pool_recycle': 1800,  # 30 minutes for Azure
+            'pool_pre_ping': True,
+            'connect_args': {
+                'timeout': 30,
+                'autocommit': False,
+                'isolation_level': 'READ_COMMITTED'
+            }
+        }
+        print("Using Azure SQL Database with optimized connection pooling")
+    else:
+        print("Using database configuration from database_config.py")
         
 except Exception as e:
     # Fallback to simple configuration if database_config fails
@@ -256,6 +274,7 @@ except Exception as e:
             database_url = f'sqlite:///{db_path}'
     
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize extensions
@@ -3314,7 +3333,6 @@ def health_check():
         
         # Check database connectivity
         try:
-            from sqlalchemy import text
             db.session.execute(text('SELECT 1'))
             health_status['services']['database'] = 'healthy'
         except Exception as e:

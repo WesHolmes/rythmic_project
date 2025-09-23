@@ -36,6 +36,8 @@ class AzureProductionMigration:
         """
         try:
             from app import app, db
+            # Make db available globally for this module
+            globals()['db'] = db
             
             with app.app_context():
                 logger.info("Starting Azure production migration...")
@@ -375,12 +377,39 @@ class AzureProductionMigration:
         try:
             with engine.connect() as conn:
                 # Update statistics for better query performance
-                conn.execute(db.text("UPDATE STATISTICS project_collaborators"))
-                conn.execute(db.text("UPDATE STATISTICS sharing_tokens"))
-                conn.execute(db.text("UPDATE STATISTICS sharing_activity_log"))
-                conn.execute(db.text("UPDATE STATISTICS active_sessions"))
+                tables_to_optimize = [
+                    'project_collaborators', 'sharing_tokens', 'sharing_activity_log', 
+                    'active_sessions', 'task', 'project', 'user', 'label', 'task_labels',
+                    'task_dependency', 'invitation_notifications'
+                ]
                 
-                logger.info("✓ Updated Azure SQL Database statistics")
+                for table in tables_to_optimize:
+                    try:
+                        conn.execute(db.text(f"UPDATE STATISTICS {table}"))
+                        logger.info(f"✓ Updated statistics for {table}")
+                    except Exception as e:
+                        logger.warning(f"Could not update statistics for {table}: {e}")
+                
+                # Set Azure SQL Database specific optimizations
+                try:
+                    # Enable query store for performance monitoring
+                    conn.execute(db.text("""
+                        ALTER DATABASE CURRENT SET QUERY_STORE = ON
+                    """))
+                    logger.info("✓ Enabled Query Store for performance monitoring")
+                except Exception as e:
+                    logger.warning(f"Could not enable Query Store: {e}")
+                
+                # Set compatibility level for better performance
+                try:
+                    conn.execute(db.text("""
+                        ALTER DATABASE CURRENT SET COMPATIBILITY_LEVEL = 160
+                    """))
+                    logger.info("✓ Set compatibility level to SQL Server 2022")
+                except Exception as e:
+                    logger.warning(f"Could not set compatibility level: {e}")
+                
+                logger.info("✓ Azure SQL Database optimizations completed")
                 
         except Exception as e:
             logger.warning(f"Azure SQL optimization warning: {e}")

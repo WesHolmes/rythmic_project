@@ -265,10 +265,6 @@
                 </h2>
                 <div class="flex items-center space-x-2">
                     <div class="flex items-center bg-gray-800/50 rounded-lg p-1">
-                        <button id="toggle-hierarchy-btn"
-                            class="text-xs px-3 py-1.5 rounded-md text-gray-300 hover:text-white hover:bg-gray-700 transition-all duration-200">
-                            <i class="fas fa-sitemap mr-1"></i>Hierarchy
-                        </button>
                         <button id="toggle-drag-drop-btn"
                             class="text-xs px-3 py-1.5 rounded-md text-gray-300 hover:text-white hover:bg-gray-700 transition-all duration-200">
                             <i class="fas fa-arrows-alt mr-1"></i>Reorder
@@ -285,7 +281,8 @@
                 data-task-id="{{ task.id }}" data-parent-id="{{ task.parent_id or '' }}"
                 data-sort-order="{{ task.sort_order }}" data-risk-level="{{ task.risk_level }}"
                 data-is-expanded="{{ task.is_expanded|lower }}"
-                style="{% if task.parent_id %}margin-left: 20px; border-left: 2px solid #374151;{% endif %}">
+                style="{% if task.parent_id %}margin-left: calc(20px * var(--nesting-level, 1)); border-left: 2px solid #374151;{% endif %}"
+                data-nesting-level="0">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center space-x-4">
                         <!-- Drag Handle -->
@@ -741,13 +738,13 @@
                         <textarea 
                             id="child-task-titles" 
                             rows="6" 
-                            class="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                            class="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
                             placeholder="Task 1&#10;Task 2&#10;Task 3&#10;..."></textarea>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-300 mb-2">Priority</label>
-                            <select id="child-task-priority" class="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500">
+                            <select id="child-task-priority" class="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500">
                                 <option value="low">Low</option>
                                 <option value="medium" selected>Medium</option>
                                 <option value="high">High</option>
@@ -755,7 +752,7 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-300 mb-2">Size</label>
-                            <select id="child-task-size" class="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500">
+                            <select id="child-task-size" class="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500">
                                 <option value="small">Small</option>
                                 <option value="medium" selected>Medium</option>
                                 <option value="large">Large</option>
@@ -846,6 +843,21 @@
         color: #ffffff !important;
     }
 
+    /* Child task modal form elements */
+    #child-task-titles,
+    #child-task-priority,
+    #child-task-size {
+        color: #ffffff !important;
+        background-color: #1f2937 !important;
+        border: 1px solid #4b5563 !important;
+    }
+
+    #child-task-priority option,
+    #child-task-size option {
+        background-color: #1f2937 !important;
+        color: #ffffff !important;
+    }
+
     /* Drag and Drop Styles */
     .sortable-ghost {
         opacity: 0.4;
@@ -870,6 +882,21 @@
         margin-left: 20px;
         border-left: 2px solid #374151;
         padding-left: 16px;
+    }
+
+    /* Dynamic indentation for multiple nesting levels */
+    .hierarchy-view .task-item[data-parent-id] {
+        position: relative;
+    }
+
+    .hierarchy-view .task-item[data-parent-id]::before {
+        content: '';
+        position: absolute;
+        left: -2px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background-color: #374151;
     }
 
     /* Child task visibility and transitions */
@@ -1294,13 +1321,12 @@
         const generateSummaryBtn = document.getElementById('generate-summary-btn');
         const manageLabelsBtn = document.getElementById('manage-labels-btn');
         // Removed manageDependenciesBtn and riskDashboardBtn as they're no longer needed
-        const toggleHierarchyBtn = document.getElementById('toggle-hierarchy-btn');
         const toggleDragDropBtn = document.getElementById('toggle-drag-drop-btn');
 
         // Advanced Task Management State
         let isDragDropEnabled = false;
-        let isHierarchyView = false;
-
+        let isHierarchyView = false; // Show flat list view by default
+        
         // Initialize task hierarchy state
         initializeTaskHierarchy();
         let sortableInstance = null;
@@ -1354,7 +1380,7 @@
                             'Content-Type': 'application/json',
                         },
                         body: JSON.stringify({
-                            project_id: {{ project.id|tojson }}
+                            project_id: {{ project.id }}
                         })
                     });
 
@@ -1406,10 +1432,6 @@
     }
 
     // Advanced Task Management Event Listeners
-    if (toggleHierarchyBtn) {
-        toggleHierarchyBtn.addEventListener('click', toggleHierarchyView);
-    }
-
     if (toggleDragDropBtn) {
         toggleDragDropBtn.addEventListener('click', toggleDragDrop);
     }
@@ -1592,11 +1614,11 @@
         try {
             let endpoint;
             if (currentStatus === 'backlog') {
-                endpoint = `/api/projects/{{ project.id|tojson }}/tasks/${taskId}/workflow/start`;
+                endpoint = `/api/projects/{{ project.id }}/tasks/${taskId}/workflow/start`;
             } else if (currentStatus === 'in_progress') {
-                endpoint = `/api/projects/{{ project.id|tojson }}/tasks/${taskId}/workflow/commit`;
+                endpoint = `/api/projects/{{ project.id }}/tasks/${taskId}/workflow/commit`;
             } else if (currentStatus === 'committed') {
-                endpoint = `/api/projects/{{ project.id|tojson }}/tasks/${taskId}/workflow/complete`;
+                endpoint = `/api/projects/{{ project.id }}/tasks/${taskId}/workflow/complete`;
             } else {
                 throw new Error('Invalid workflow status for transition');
             }
@@ -1653,7 +1675,7 @@
         button.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Resetting...';
 
         try {
-            const endpoint = `/api/projects/{{ project.id|tojson }}/tasks/${taskId}/workflow/reset`;
+            const endpoint = `/api/projects/{{ project.id }}/tasks/${taskId}/workflow/reset`;
 
             const response = await fetch(endpoint, {
                 method: 'POST',
@@ -1768,7 +1790,7 @@
         createButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Creating...';
         
         try {
-            const response = await fetch(`/api/projects/{{ project.id|tojson }}/tasks/batch-create`, {
+            const response = await fetch(`/api/projects/{{ project.id }}/tasks/batch-create`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1824,10 +1846,54 @@
 
     // Advanced Task Management Functions
 
+    // Calculate nesting levels for all tasks
+    function calculateNestingLevels() {
+        const taskItems = document.querySelectorAll('.task-item');
+        const taskMap = new Map();
+        
+        // First pass: build a map of all tasks
+        taskItems.forEach(taskItem => {
+            const taskId = taskItem.dataset.taskId;
+            const parentId = taskItem.dataset.parentId;
+            taskMap.set(taskId, { element: taskItem, parentId: parentId || null });
+        });
+        
+        // Second pass: calculate nesting levels
+        function getNestingLevel(taskId, visited = new Set()) {
+            if (visited.has(taskId)) {
+                return 0; // Prevent infinite recursion
+            }
+            visited.add(taskId);
+            
+            const task = taskMap.get(taskId);
+            if (!task || !task.parentId) {
+                return 0;
+            }
+            
+            return 1 + getNestingLevel(task.parentId, visited);
+        }
+        
+        // Apply nesting levels
+        taskItems.forEach(taskItem => {
+            const taskId = taskItem.dataset.taskId;
+            const nestingLevel = getNestingLevel(taskId);
+            taskItem.dataset.nestingLevel = nestingLevel;
+            
+            if (nestingLevel > 0) {
+                taskItem.style.setProperty('--nesting-level', nestingLevel);
+                taskItem.style.marginLeft = `calc(20px * ${nestingLevel})`;
+            }
+        });
+    }
+
     // Initialize task hierarchy state on page load
     function initializeTaskHierarchy() {
+        // Calculate nesting levels first
+        calculateNestingLevels();
+        
         // Set up expand/collapse buttons based on database state
         document.querySelectorAll('.expand-toggle').forEach(btn => {
+            btn.style.display = 'block'; // Always show expand/collapse buttons
             const taskId = btn.dataset.taskId;
             const taskItem = document.querySelector(`[data-task-id="${taskId}"].task-item`);
             const isExpanded = taskItem.dataset.isExpanded === 'true';
@@ -1843,44 +1909,6 @@
         });
     }
 
-    // Toggle Hierarchy View
-    function toggleHierarchyView() {
-        isHierarchyView = !isHierarchyView;
-        const tasksContainer = document.getElementById('tasks-container');
-
-        if (isHierarchyView) {
-            toggleHierarchyBtn.innerHTML = '<i class="fas fa-list mr-1"></i>List View';
-            tasksContainer.classList.add('hierarchy-view');
-            // Show expand/collapse buttons and initialize states
-            document.querySelectorAll('.expand-toggle').forEach(btn => {
-                btn.style.display = 'block';
-                const taskId = btn.dataset.taskId;
-                const taskItem = document.querySelector(`[data-task-id="${taskId}"].task-item`);
-                const isExpanded = taskItem.dataset.isExpanded === 'true';
-                const icon = btn.querySelector('i');
-                
-                if (isExpanded) {
-                    icon.style.transform = 'rotate(90deg)';
-                    showChildTasks(taskId);
-                } else {
-                    icon.style.transform = 'rotate(0deg)';
-                    hideChildTasks(taskId);
-                }
-            });
-        } else {
-            toggleHierarchyBtn.innerHTML = '<i class="fas fa-sitemap mr-1"></i>Hierarchy View';
-            tasksContainer.classList.remove('hierarchy-view');
-            // Hide expand/collapse buttons and show all tasks
-            document.querySelectorAll('.expand-toggle').forEach(btn => {
-                btn.style.display = 'none';
-            });
-            // Show all child tasks when not in hierarchy view
-            document.querySelectorAll('[data-parent-id]').forEach(childTask => {
-                childTask.style.display = 'block';
-                childTask.classList.add('child-task-visible');
-            });
-        }
-    }
 
     // Toggle Drag & Drop
     function toggleDragDrop() {
@@ -1932,7 +1960,7 @@
         }));
 
         try {
-            const response = await fetch(`/api/projects/{{ project.id|tojson }}/tasks/reorder`, {
+            const response = await fetch(`/api/projects/{{ project.id }}/tasks/reorder`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1952,7 +1980,7 @@
     // Toggle Task Expansion
     async function toggleTaskExpansion(taskId) {
         try {
-            const response = await fetch(`/api/projects/{{ project.id|tojson }}/tasks/${taskId}/toggle-expand`, {
+            const response = await fetch(`/api/projects/{{ project.id }}/tasks/${taskId}/toggle-expand`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1977,21 +2005,36 @@
         }
     }
 
-    // Show child tasks for a parent task
+    // Show child tasks for a parent task (recursive - shows all descendants)
     function showChildTasks(parentTaskId) {
         const childTasks = document.querySelectorAll(`[data-parent-id="${parentTaskId}"]`);
         childTasks.forEach(childTask => {
             childTask.style.display = 'block';
             childTask.classList.add('child-task-visible');
+            
+            // Recursively show children of this child task if it's expanded
+            const childTaskId = childTask.dataset.taskId;
+            const childExpandButton = childTask.querySelector('.expand-toggle');
+            if (childExpandButton) {
+                const childIcon = childExpandButton.querySelector('i');
+                const isChildExpanded = childIcon.style.transform === 'rotate(90deg)';
+                if (isChildExpanded) {
+                    showChildTasks(childTaskId);
+                }
+            }
         });
     }
 
-    // Hide child tasks for a parent task
+    // Hide child tasks for a parent task (recursive - hides all descendants)
     function hideChildTasks(parentTaskId) {
         const childTasks = document.querySelectorAll(`[data-parent-id="${parentTaskId}"]`);
         childTasks.forEach(childTask => {
             childTask.style.display = 'none';
             childTask.classList.remove('child-task-visible');
+            
+            // Recursively hide all descendants
+            const childTaskId = childTask.dataset.taskId;
+            hideChildTasks(childTaskId);
         });
     }
 
@@ -2159,11 +2202,11 @@
 
     async function showLabelsModal() {
         try {
-            // Clear any existing modals first
-            document.querySelectorAll('.fixed').forEach(modal => modal.remove());
+            // Clear any existing dynamically created modals first (but preserve predefined modals)
+            document.querySelectorAll('.fixed:not(#sharing-modal):not(#collaborator-modal):not(#activity-log-modal)').forEach(modal => modal.remove());
             
             // Fetch current labels
-            const response = await fetch(`/projects/{{ project.id|tojson }}/labels`);
+            const response = await fetch(`/projects/{{ project.id }}/labels`);
             const data = await response.json();
 
             if (response.ok) {
@@ -2254,7 +2297,7 @@
         }
 
         try {
-            const response = await fetch(`/projects/{{ project.id|tojson }}/labels`, {
+            const response = await fetch(`/projects/{{ project.id }}/labels`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -2265,8 +2308,8 @@
             const data = await response.json();
 
             if (response.ok) {
-                // Clear all existing modals and refresh
-                document.querySelectorAll('.fixed').forEach(modal => modal.remove());
+                // Clear all existing dynamically created modals and refresh (but preserve predefined modals)
+                document.querySelectorAll('.fixed:not(#sharing-modal):not(#collaborator-modal):not(#activity-log-modal)').forEach(modal => modal.remove());
                 showLabelsModal();
             } else {
                 alert('Error: ' + data.error);
@@ -2278,7 +2321,7 @@
 
     window.editLabel = async function (labelId) {
         // Find the label data
-        const labels = await fetch(`/projects/{{ project.id|tojson }}/labels`).then(r => r.json()).then(d => d.labels);
+        const labels = await fetch(`/projects/{{ project.id }}/labels`).then(r => r.json()).then(d => d.labels);
         const label = labels.find(l => l.id === labelId);
         
         if (!label) {
@@ -2352,7 +2395,7 @@
         }
 
         try {
-            const response = await fetch(`/projects/{{ project.id|tojson }}/labels/${labelId}`, {
+            const response = await fetch(`/projects/{{ project.id }}/labels/${labelId}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -2363,8 +2406,8 @@
             const data = await response.json();
 
             if (response.ok) {
-                // Clear all existing modals and refresh
-                document.querySelectorAll('.fixed').forEach(modal => modal.remove());
+                // Clear all existing dynamically created modals and refresh (but preserve predefined modals)
+                document.querySelectorAll('.fixed:not(#sharing-modal):not(#collaborator-modal):not(#activity-log-modal)').forEach(modal => modal.remove());
                 showLabelsModal();
             } else {
                 alert('Error: ' + data.error);
@@ -2380,15 +2423,15 @@
         }
 
         try {
-            const response = await fetch(`/projects/{{ project.id|tojson }}/labels/${labelId}`, {
+            const response = await fetch(`/projects/{{ project.id }}/labels/${labelId}`, {
                 method: 'DELETE'
             });
 
             const data = await response.json();
 
             if (response.ok) {
-                // Clear all existing modals and refresh
-                document.querySelectorAll('.fixed').forEach(modal => modal.remove());
+                // Clear all existing dynamically created modals and refresh (but preserve predefined modals)
+                document.querySelectorAll('.fixed:not(#sharing-modal):not(#collaborator-modal):not(#activity-log-modal)').forEach(modal => modal.remove());
                 showLabelsModal();
             } else {
                 alert('Error: ' + data.error);
@@ -2462,10 +2505,10 @@
     }
 
     // Initialize Sharing Manager
-    window.sharingManager = new SharingManager({{ project.id|tojson }}, {
-        can_manage_collaborators: {{ user_permissions.can_manage_collaborators|tojson }},
-        can_manage_share_links: {{ user_permissions.can_manage_share_links|tojson }},
-        can_view_collaborators: {{ user_permissions.can_view_collaborators|tojson }}
+    window.sharingManager = new SharingManager({{ project.id }}, {
+        can_manage_collaborators: {{ user_permissions.can_manage_collaborators|lower }},
+        can_manage_share_links: {{ user_permissions.can_manage_share_links|lower }},
+        can_view_collaborators: {{ user_permissions.can_view_collaborators|lower }}
     });
     
     // Initialize Activity Log Manager
@@ -2505,7 +2548,7 @@
     // Load collaborators when page loads
     async function loadCollaborators() {
         try {
-            const response = await fetch(`/api/projects/{{ project.id|tojson }}/collaborators`);
+            const response = await fetch(`/api/projects/{{ project.id }}/collaborators`);
             const data = await response.json();
             if (data.collaborators) {
                 collaborators = data.collaborators;
@@ -2573,7 +2616,7 @@
             let response;
             if (assignedToId) {
                 // Assign task
-                response = await fetch(`/api/projects/{{ project.id|tojson }}/tasks/${currentTaskId}/assign`, {
+                response = await fetch(`/api/projects/{{ project.id }}/tasks/${currentTaskId}/assign`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -2582,7 +2625,7 @@
                 });
             } else {
                 // Unassign task
-                response = await fetch(`/api/projects/{{ project.id|tojson }}/tasks/${currentTaskId}/unassign`, {
+                response = await fetch(`/api/projects/{{ project.id }}/tasks/${currentTaskId}/unassign`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -2617,7 +2660,7 @@
 
     async function unassignTask(taskId) {
         try {
-            const response = await fetch(`/api/projects/{{ project.id|tojson }}/tasks/${taskId}/unassign`, {
+            const response = await fetch(`/api/projects/{{ project.id }}/tasks/${taskId}/unassign`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

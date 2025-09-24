@@ -532,7 +532,7 @@ class Task(db.Model):
     risk_level = db.Column(db.String(20), default='low')  # low, medium, high, critical
     risk_description = db.Column(db.Text)  # Description of potential risks
     mitigation_plan = db.Column(db.Text)  # Plan to mitigate identified risks
-    is_expanded = db.Column(db.Boolean, default=True)  # For hierarchy view
+    is_expanded = db.Column(db.Boolean, default=False)  # For hierarchy view
     
     # Task Assignment Fields
     assigned_to = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # User assigned to this task
@@ -1493,14 +1493,31 @@ def view_project(id):
         'is_owner': project.owner_id == current_user.id
     }
     
-    # Get tasks with hierarchy, ordered by parent_id (nulls first), then sort_order
-    # Azure SQL Database doesn't support NULLS FIRST, so we use CASE statement instead
-    tasks = Task.query.filter_by(project_id=id).order_by(
-        db.case((Task.parent_id.is_(None), 0), else_=1),
-        Task.parent_id.asc(),
+    # Get tasks with hierarchy, ordered to show child tasks under their parents
+    # First get all parent tasks (parent_id is null), then recursively get all descendants
+    parent_tasks = Task.query.filter_by(project_id=id, parent_id=None).order_by(
         Task.sort_order, 
         Task.created_at
     ).all()
+    
+    def build_hierarchy_recursive(parent_task, all_tasks):
+        """Recursively build task hierarchy with unlimited nesting levels"""
+        all_tasks.append(parent_task)
+        
+        # Get direct children of this parent
+        child_tasks = Task.query.filter_by(project_id=id, parent_id=parent_task.id).order_by(
+            Task.sort_order, 
+            Task.created_at
+        ).all()
+        
+        # Recursively add children and their descendants
+        for child in child_tasks:
+            build_hierarchy_recursive(child, all_tasks)
+    
+    # Build ordered task list with children under their parents (recursive)
+    tasks = []
+    for parent in parent_tasks:
+        build_hierarchy_recursive(parent, tasks)
     
     # Convert tasks to dictionaries for JSON serialization
     tasks_data = []

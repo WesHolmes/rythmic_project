@@ -39,6 +39,13 @@ class SharingManager {
                 this.closeModal(document.getElementById('collaborator-modal'));
             }
             
+            // Close collaborator modal button (bottom close button)
+            if (e.target.id === 'close-collaborator-modal-btn') {
+                e.preventDefault();
+                e.stopPropagation();
+                this.closeModal(document.getElementById('collaborator-modal'));
+            }
+            
             if (e.target.id === 'close-activity-log-modal' || e.target.closest('#close-activity-log-modal')) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -66,6 +73,25 @@ class SharingManager {
             
             if (e.target.id === 'copy-text-btn') {
                 this.copyTextMessage();
+            }
+            
+            // Cancel buttons for sharing modal
+            if (e.target.id === 'cancel-email-share') {
+                e.preventDefault();
+                e.stopPropagation();
+                this.closeModal(document.getElementById('sharing-modal'));
+            }
+            
+            if (e.target.id === 'cancel-link-share') {
+                e.preventDefault();
+                e.stopPropagation();
+                this.closeModal(document.getElementById('sharing-modal'));
+            }
+            
+            if (e.target.id === 'cancel-text-share') {
+                e.preventDefault();
+                e.stopPropagation();
+                this.closeModal(document.getElementById('sharing-modal'));
             }
         });
 

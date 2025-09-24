@@ -81,19 +81,66 @@ html {
 /* Input focus styles */
 input:focus, textarea:focus, select:focus {
     outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    border-color: #3b82f6 !important;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3) !important;
+    background-color: #374151 !important;
+    color: #ffffff !important;
 }
 
-/* Input text color - make text black for visibility */
+/* Focus states for Tailwind overrides */
+input.bg-gray-800\/50:focus, textarea.bg-gray-800\/50:focus, select.bg-gray-800\/50:focus,
+input[class*="bg-gray-800"]:focus, textarea[class*="bg-gray-800"]:focus, select[class*="bg-gray-800"]:focus,
+.w-full.px-4.py-3.bg-gray-800\/50:focus,
+input[class*="w-full"][class*="px-4"][class*="py-3"]:focus,
+textarea[class*="w-full"][class*="px-4"][class*="py-3"]:focus,
+select[class*="w-full"][class*="px-4"][class*="py-3"]:focus {
+    outline: none !important;
+    border-color: #3b82f6 !important;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3) !important;
+    background-color: #374151 !important;
+    color: #ffffff !important;
+}
+
+/* Input text color - make text white for visibility on grey backgrounds */
 input[type="text"], input[type="email"], input[type="password"], input[type="file"], 
 input[type="date"], input[type="number"], textarea, select {
-    color: #1f2937 !important;
+    color: #ffffff !important;
+    background-color: #374151 !important;
+    border: 1px solid #6b7280 !important;
+}
+
+/* Override Tailwind classes with higher specificity */
+input.bg-gray-800\/50, textarea.bg-gray-800\/50, select.bg-gray-800\/50,
+input[class*="bg-gray-800"], textarea[class*="bg-gray-800"], select[class*="bg-gray-800"] {
+    color: #ffffff !important;
+    background-color: #374151 !important;
+    border: 1px solid #6b7280 !important;
+}
+
+/* More specific overrides for common Tailwind patterns */
+.w-full.px-4.py-3.bg-gray-800\/50,
+.w-full.px-4.py-3[class*="bg-gray-800"],
+input[class*="w-full"][class*="px-4"][class*="py-3"],
+textarea[class*="w-full"][class*="px-4"][class*="py-3"],
+select[class*="w-full"][class*="px-4"][class*="py-3"] {
+    color: #ffffff !important;
+    background-color: #374151 !important;
+    border: 1px solid #6b7280 !important;
+}
+
+/* Override any text-white classes on form elements */
+input.text-white, textarea.text-white, select.text-white,
+input[class*="text-white"], textarea[class*="text-white"], select[class*="text-white"] {
+    color: #ffffff !important;
+    background-color: #374151 !important;
+    border: 1px solid #6b7280 !important;
 }
 
 /* File input specific styling */
 input[type="file"] {
-    color: #1f2937 !important;
+    color: #ffffff !important;
+    background-color: #374151 !important;
+    border: 1px solid #6b7280 !important;
 }
 
 /* Dropdown/select options styling */
@@ -114,22 +161,29 @@ select option:checked {
 
 /* Ensure all form elements have proper text color */
 input, textarea {
-    color: #1f2937 !important;
+    color: #ffffff !important;
+    background-color: #374151 !important;
+    border: 1px solid #6b7280 !important;
 }
 
 /* Select elements should have white text for visibility */
 select {
-    color: #f8fafc !important;
-    background-color: #1f2937 !important;
+    color: #ffffff !important;
+    background-color: #374151 !important;
+    border: 1px solid #6b7280 !important;
 }
 
 /* Override any white text classes on form elements */
 input.text-white, textarea.text-white {
-    color: #1f2937 !important;
+    color: #ffffff !important;
+    background-color: #374151 !important;
+    border: 1px solid #6b7280 !important;
 }
 
 select.text-white {
-    color: #f8fafc !important;
+    color: #ffffff !important;
+    background-color: #374151 !important;
+    border: 1px solid #6b7280 !important;
 }
 
 input[type="file"]::file-selector-button {
@@ -146,6 +200,19 @@ input[type="file"]::file-selector-button {
 input[type="file"]::file-selector-button:hover {
     background: #4b5563;
     border-color: #6b7280;
+}
+
+/* Placeholder text styling for grey backgrounds */
+input::placeholder, textarea::placeholder {
+    color: #d1d5db !important;
+    opacity: 1;
+}
+
+/* Override Tailwind placeholder classes */
+input.placeholder-gray-400::placeholder, textarea.placeholder-gray-400::placeholder,
+input[class*="placeholder-gray"]::placeholder, textarea[class*="placeholder-gray"]::placeholder {
+    color: #d1d5db !important;
+    opacity: 1 !important;
 }
 
 /* Project Card Styles */

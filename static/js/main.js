@@ -29,8 +29,13 @@ document.querySelectorAll('a[href^="#"]').forEach(anchor => {
     });
 });
 
-// Add loading states to forms
+// Add loading states to forms (excluding forms with custom handlers)
 document.querySelectorAll('form').forEach(form => {
+    // Skip forms that have custom handlers (like sharing forms)
+    if (form.id === 'email-sharing-form' || form.id === 'link-sharing-form') {
+        return;
+    }
+    
     form.addEventListener('submit', function() {
         const submitBtn = this.querySelector('button[type="submit"]');
         if (submitBtn) {

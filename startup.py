@@ -147,7 +147,7 @@ def run_health_checks():
         static_files_to_check = [
             'static/css/style.css',
             'static/js/main.js',
-            'static/js/websocket-client.js'
+            # 'static/js/websocket-client.js' - removed
         ]
         
         for static_file in static_files_to_check:

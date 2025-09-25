@@ -226,11 +226,13 @@ class SharingService:
         email_error = None
         
         try:
+            print(f"DEBUG: About to send email to {email} with subject: {subject}")
             self._send_email(
                 to_email=email,
                 subject=subject,
                 html_content=html_content
             )
+            print(f"DEBUG: Email sent successfully to {email}")
             email_sent = True
         except EmailDeliveryError as e:
             # If email fails, still create the sharing link but log the error

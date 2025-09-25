@@ -155,4 +155,29 @@
         </div>
     {% endif %}
 </div>
+
+{% if refresh_requested %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Show a notification that the project has been added
+    const notification = document.createElement('div');
+    notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center';
+    notification.innerHTML = '<i class="fas fa-check-circle mr-2"></i>Project added successfully!';
+    
+    document.body.appendChild(notification);
+    
+    // Remove notification after 5 seconds
+    setTimeout(() => {
+        notification.remove();
+    }, 5000);
+    
+    // Remove the refresh parameter from URL to prevent infinite reloading
+    if (window.location.search.includes('refresh=true')) {
+        const url = new URL(window.location);
+        url.searchParams.delete('refresh');
+        window.history.replaceState({}, '', url);
+    }
+});
+</script>
+{% endif %}
 {% endblock %}

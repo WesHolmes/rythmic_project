@@ -785,10 +785,7 @@
 {% block scripts %}
 <!-- SortableJS for drag and drop -->
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
-<!-- WebSocket Client -->
-<script src="{{ url_for('static', filename='js/websocket-client.js') }}"></script>
-<!-- Project Real-time Updates -->
-<script src="{{ url_for('static', filename='js/project-realtime.js') }}"></script>
+<!-- WebSocket and real-time features removed - using simple HTTP requests instead -->
 <!-- Sharing Management -->
 <script src="{{ url_for('static', filename='js/sharing.js') }}"></script>
 
@@ -2504,42 +2501,102 @@
         }
     }
 
-    // Initialize Sharing Manager
-    window.sharingManager = new SharingManager({{ project.id }}, {
-        can_manage_collaborators: {{ user_permissions.can_manage_collaborators|lower }},
-        can_manage_share_links: {{ user_permissions.can_manage_share_links|lower }},
-        can_view_collaborators: {{ user_permissions.can_view_collaborators|lower }}
-    });
+    // Initialize Sharing Manager (only if not already initialized)
+    if (!window.sharingManager) {
+        window.sharingManager = new SharingManager({{ project.id }}, {
+            can_manage_collaborators: {{ user_permissions.can_manage_collaborators|lower }},
+            can_manage_share_links: {{ user_permissions.can_manage_share_links|lower }},
+            can_view_collaborators: {{ user_permissions.can_view_collaborators|lower }}
+        });
+    }
     
     // Initialize Activity Log Manager
     window.activityLogManager = new ActivityLogManager();
     
-    // Simple user info management without WebSocket
+    // User info management with real-time active user tracking
     function updateUserInfo() {
-        // Set initial active user count to 1 (current user)
-        const activeUserCount = document.getElementById('active-user-count');
-        if (activeUserCount) {
-            activeUserCount.textContent = '1';
-        }
+        const projectId = document.querySelector('[data-project-id]').dataset.projectId;
         
-        // Update active users display
-        const activeUsersContainer = document.getElementById('active-users');
-        if (activeUsersContainer) {
-            activeUsersContainer.innerHTML = `
-                <div class="active-user" title="You are currently viewing this project">
-                    <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-semibold">
-                        {{ current_user.name[0]|upper }}
-                    </div>
-                </div>
-            `;
-        }
+        // Fetch active users from API
+        fetch(`/api/projects/${projectId}/active-users`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.error('Error fetching active users:', data.error);
+                    return;
+                }
+                
+                // Update active user count
+                const activeUserCount = document.getElementById('active-user-count');
+                if (activeUserCount) {
+                    activeUserCount.textContent = data.count;
+                }
+                
+                // Update active users display
+                const activeUsersContainer = document.getElementById('active-users');
+                if (activeUsersContainer) {
+                    activeUsersContainer.innerHTML = '';
+                    
+                    data.active_users.forEach(user => {
+                        const userElement = document.createElement('div');
+                        userElement.className = 'active-user';
+                        userElement.title = `${user.name}${user.is_current_user ? ' (You)' : ''} - Last active: ${new Date(user.last_activity).toLocaleTimeString()}`;
+                        
+                        // Get first letter of name for avatar
+                        const firstLetter = user.name.charAt(0).toUpperCase();
+                        
+                        // Different colors for different users
+                        const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500', 'bg-pink-500', 'bg-indigo-500'];
+                        const colorIndex = user.id % colors.length;
+                        const bgColor = user.is_current_user ? 'bg-blue-500' : colors[colorIndex];
+                        
+                        userElement.innerHTML = `
+                            <div class="w-8 h-8 ${bgColor} rounded-full flex items-center justify-center text-white text-sm font-semibold">
+                                ${firstLetter}
+                            </div>
+                        `;
+                        
+                        activeUsersContainer.appendChild(userElement);
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching active users:', error);
+                // Fallback to showing just current user
+                const activeUserCount = document.getElementById('active-user-count');
+                if (activeUserCount) {
+                    activeUserCount.textContent = '1';
+                }
+            });
     }
     
     // Initialize user info on page load
     updateUserInfo();
     
-    // Optional: Update every 30 seconds (much less frequent than WebSocket)
+    // Update every 30 seconds to refresh active user count
     setInterval(updateUserInfo, 30000);
+    
+    // Clean up active session when user leaves the page
+    function cleanupActiveSession() {
+        const projectId = document.querySelector('[data-project-id]').dataset.projectId;
+        
+        // Send cleanup request (fire and forget)
+        fetch(`/api/projects/${projectId}/active-users`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                user_id: {{ current_user.id }}
+            })
+        }).catch(error => {
+            console.log('Session cleanup failed (this is normal on page unload):', error);
+        });
+    }
+    
+    // Clean up session when page is unloaded
+    window.addEventListener('beforeunload', cleanupActiveSession);
+    window.addEventListener('pagehide', cleanupActiveSession);
 
     // Task Assignment Functionality
     let currentTaskId = null;

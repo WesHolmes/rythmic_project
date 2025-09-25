@@ -136,7 +136,7 @@ def test_static_files():
             <ul>
                 <li><a href="/static/css/style.css" target="_blank" style="color: #60a5fa;">style.css</a></li>
                 <li><a href="/static/js/main.js" target="_blank" style="color: #60a5fa;">main.js</a></li>
-                <li><a href="/static/js/websocket-client.js" target="_blank" style="color: #60a5fa;">websocket-client.js</a></li>
+                <li><span style="color: #6b7280;">websocket-client.js (removed)</span></li>
             </ul>
         </div>
         
@@ -995,15 +995,19 @@ def login():
             # Check for pending sharing token
             if 'pending_sharing_token' in session:
                 token = session.pop('pending_sharing_token')
+                print(f"DEBUG: Processing pending sharing token: {token}")
                 try:
                     from services.sharing_service import SharingService
                     sharing_service = SharingService()
                     result = sharing_service.process_sharing_token(token, user.id)
+                    print(f"DEBUG: Sharing token processed successfully: {result}")
                     flash(result['message'], 'success')
-                    return redirect(url_for('view_project', id=result['project']['id']))
+                    # Redirect to projects page with refresh parameter to ensure the new project shows up
+                    return redirect(url_for('projects', refresh='true'))
                 except Exception as e:
+                    print(f"DEBUG: Error processing sharing token: {str(e)}")
                     flash(f'Error processing invitation: {str(e)}', 'error')
-                    return redirect(url_for('view_project', id=result['project']['id']))
+                    return redirect(url_for('projects'))
             
             # Check for next parameter (from invitation redirect)
             next_page = request.args.get('next')
@@ -1083,6 +1087,9 @@ def login_google():
     state = None
     if 'pending_sharing_token' in session:
         state = session['pending_sharing_token']
+        print(f"DEBUG: Google OAuth login - Found pending sharing token in session: {state}")
+    else:
+        print("DEBUG: Google OAuth login - No pending sharing token in session")
     
     return google.authorize_redirect(redirect_uri, state=state)
 
@@ -1098,6 +1105,7 @@ def authorize_google():
         
         # Get the state parameter (which contains the sharing token if present)
         sharing_token = request.args.get('state')
+        print(f"DEBUG: Google OAuth - State parameter: {sharing_token}")
         
         # Get user info from Google API
         resp = google.get('https://www.googleapis.com/oauth2/v2/userinfo', token=token)
@@ -1132,18 +1140,25 @@ def authorize_google():
             
             login_user(user)
             
-            # Check for pending sharing token
-            if 'pending_sharing_token' in session:
-                token = session.pop('pending_sharing_token')
+            # Check for pending sharing token (from state parameter or session)
+            token = sharing_token or session.get('pending_sharing_token')
+            if token:
+                if 'pending_sharing_token' in session:
+                    session.pop('pending_sharing_token')
+                print(f"DEBUG: Google OAuth - Processing sharing token: {token}")
                 try:
                     from services.sharing_service import SharingService
                     sharing_service = SharingService()
                     result = sharing_service.process_sharing_token(token, user.id)
+                    print(f"DEBUG: Google OAuth - Sharing token processed successfully: {result}")
                     flash(result['message'], 'success')
-                    return redirect(url_for('view_project', id=result['project']['id']))
+                    # Redirect to projects page with refresh parameter to ensure the new project shows up
+                    return redirect(url_for('projects', refresh='true'))
                 except Exception as e:
+                    print(f"DEBUG: Google OAuth - Error processing sharing token: {str(e)}")
                     flash(f'Error processing invitation: {str(e)}', 'error')
-                    return redirect(url_for('view_project', id=result['project']['id']))
+                    # Redirect to projects page with refresh parameter to ensure the new project shows up
+                    return redirect(url_for('projects', refresh='true'))
             
             return redirect(url_for('index'))
         else:
@@ -1204,10 +1219,12 @@ def authorize_github():
                     sharing_service = SharingService()
                     result = sharing_service.process_sharing_token(token, user.id)
                     flash(result['message'], 'success')
-                    return redirect(url_for('view_project', id=result['project']['id']))
+                    # Redirect to projects page with refresh parameter to ensure the new project shows up
+                    return redirect(url_for('projects', refresh='true'))
                 except Exception as e:
                     flash(f'Error processing invitation: {str(e)}', 'error')
-                    return redirect(url_for('view_project', id=result['project']['id']))
+                    # Redirect to projects page with refresh parameter to ensure the new project shows up
+                    return redirect(url_for('projects', refresh='true'))
             
             return redirect(url_for('index'))
         else:
@@ -1243,7 +1260,11 @@ def projects():
             }
             projects_with_roles.append(project_data)
         
-        return render_template('projects.html', projects=projects_with_roles)
+        # Check if this is a refresh request (after accepting invitation)
+        refresh_requested = request.args.get('refresh') == 'true'
+        print(f"DEBUG: Projects page - refresh_requested: {refresh_requested}, project count: {len(projects_with_roles)}")
+        
+        return render_template('projects.html', projects=projects_with_roles, refresh_requested=refresh_requested)
         
     except Exception as e:
         print(f"Error in projects route: {e}")
@@ -1561,6 +1582,37 @@ def view_project(id):
     
     # Get collaborators for display
     collaborators = project.get_collaborators()
+    
+    # Track active session for this user on this project
+    try:
+        # Generate a unique session ID for this browser session
+        session_id = f"{current_user.id}_{id}_{datetime.utcnow().timestamp()}"
+        
+        # Check if there's already an active session for this user on this project
+        existing_session = ActiveSession.query.filter_by(
+            user_id=current_user.id, 
+            project_id=id
+        ).first()
+        
+        if existing_session:
+            # Update existing session
+            existing_session.session_id = session_id
+            existing_session.update_activity()
+        else:
+            # Create new active session
+            active_session = ActiveSession(
+                user_id=current_user.id,
+                project_id=id,
+                session_id=session_id,
+                last_activity=datetime.utcnow()
+            )
+            db.session.add(active_session)
+        
+        db.session.commit()
+    except Exception as e:
+        print(f"Error tracking active session: {e}")
+        # Don't fail the page load if session tracking fails
+        pass
     
     return render_template('project_detail.html', 
                          project=project, 
@@ -2940,6 +2992,10 @@ def accept_sharing_invitation(token):
                              error_message="The project or inviter associated with this invitation no longer exists.",
                              token=token)
     
+    # Store the sharing token in session for OAuth flows
+    session['pending_sharing_token'] = token
+    print(f"DEBUG: Stored sharing token in session: {token}")
+    
     # Check if current user is already a collaborator
     if current_user.is_authenticated:
         existing_collaborator = ProjectCollaborator.query.filter_by(
@@ -3006,7 +3062,8 @@ def process_sharing_invitation(token):
             user_agent=request.headers.get('User-Agent')
         )
         
-        return redirect(url_for('view_project', id=result['project']['id']))
+        # Redirect to projects page with refresh parameter to ensure the new project shows up
+        return redirect(url_for('projects', refresh='true'))
         
     except InvalidTokenError as e:
         flash(f'Invalid or expired invitation: {str(e)}', 'error')
@@ -3099,6 +3156,7 @@ def share_project(id):
             if not re.match(email_pattern, email):
                 return jsonify({'error': 'Invalid email address format'}), 400
             
+            print(f"DEBUG: Sending email invitation to {email} for project {id}")
             result = sharing_service.send_email_invitation(
                 project_id=id,
                 email=email,
@@ -3107,6 +3165,7 @@ def share_project(id):
                 expires_hours=expires_hours,
                 created_by=current_user.id
             )
+            print(f"DEBUG: Email invitation result: {result}")
             
             return jsonify({
                 'success': True,
@@ -3276,12 +3335,20 @@ def update_collaborator_role(id, user_id):
                 'error': 'Cannot change the role of the project owner'
             }), 400
         
-        # Find the collaborator
+        # Find the collaborator by user_id first, then by collaborator id as fallback
         collaborator = ProjectCollaborator.query.filter_by(
             project_id=id,
             user_id=user_id,
             status=ProjectCollaborator.STATUS_ACCEPTED
         ).first()
+        
+        # If not found by user_id, try by collaborator id (for cases where user_id might be missing)
+        if not collaborator:
+            collaborator = ProjectCollaborator.query.filter_by(
+                project_id=id,
+                id=user_id,
+                status=ProjectCollaborator.STATUS_ACCEPTED
+            ).first()
         
         if not collaborator:
             return jsonify({
@@ -3944,6 +4011,83 @@ def create_tables():
 print("Security enhancements configured via Azure security config")
 
 # Routes should be defined before main block
+
+@app.route('/api/projects/<int:project_id>/active-users')
+@login_required
+def get_active_users(project_id):
+    """Get active users for a project"""
+    try:
+        from services.permission_manager import PermissionManager
+        
+        # Check if user has access to view this project
+        if not PermissionManager.can_access_project(current_user.id, project_id):
+            return jsonify({'error': 'Access denied'}), 403
+        
+        # Get active sessions for this project
+        active_sessions = ActiveSession.query.filter_by(project_id=project_id).all()
+        
+        # Clean up old sessions (older than 30 minutes)
+        ActiveSession.cleanup_inactive_sessions(30)
+        
+        # Get fresh active sessions after cleanup
+        active_sessions = ActiveSession.query.filter_by(project_id=project_id).all()
+        
+        active_users = []
+        for session in active_sessions:
+            user = User.query.get(session.user_id)
+            if user:
+                active_users.append({
+                    'id': user.id,
+                    'name': user.name,
+                    'email': user.email,
+                    'last_activity': session.last_activity.isoformat(),
+                    'is_current_user': user.id == current_user.id
+                })
+        
+        return jsonify({
+            'active_users': active_users,
+            'count': len(active_users)
+        })
+        
+    except Exception as e:
+        print(f"Error getting active users: {e}")
+        return jsonify({'error': 'Failed to get active users'}), 500
+
+@app.route('/api/projects/<int:project_id>/active-users', methods=['DELETE'])
+@login_required
+def cleanup_user_session(project_id):
+    """Clean up active session for a user"""
+    try:
+        from services.permission_manager import PermissionManager
+        
+        # Check if user has access to view this project
+        if not PermissionManager.can_access_project(current_user.id, project_id):
+            return jsonify({'error': 'Access denied'}), 403
+        
+        # Get user_id from request body
+        data = request.get_json()
+        user_id = data.get('user_id') if data else current_user.id
+        
+        # Only allow users to clean up their own sessions or if they're the current user
+        if user_id != current_user.id:
+            return jsonify({'error': 'Can only clean up your own session'}), 403
+        
+        # Remove active session for this user on this project
+        active_session = ActiveSession.query.filter_by(
+            user_id=user_id,
+            project_id=project_id
+        ).first()
+        
+        if active_session:
+            db.session.delete(active_session)
+            db.session.commit()
+            return jsonify({'message': 'Session cleaned up successfully'})
+        else:
+            return jsonify({'message': 'No active session found'})
+        
+    except Exception as e:
+        print(f"Error cleaning up user session: {e}")
+        return jsonify({'error': 'Failed to clean up session'}), 500
 
 @app.route('/health')
 def health_check():

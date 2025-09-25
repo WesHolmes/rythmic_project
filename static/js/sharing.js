@@ -102,12 +102,15 @@ class SharingManager {
             }
         });
 
-        // Form submissions
-        document.addEventListener('submit', (e) => {
-            if (e.target.id === 'email-sharing-form') {
-                this.handleEmailShare(e);
-            }
-        });
+        // Form submissions - only add listener once
+        if (!window.sharingFormListenerAdded) {
+            document.addEventListener('submit', (e) => {
+                if (e.target.id === 'email-sharing-form') {
+                    this.handleEmailShare(e);
+                }
+            });
+            window.sharingFormListenerAdded = true;
+        }
     }
 
 
@@ -245,6 +248,14 @@ class SharingManager {
     // Sharing Functions
     async handleEmailShare(e) {
         e.preventDefault();
+        console.log('handleEmailShare called - preventing duplicate submission');
+        
+        // Prevent double submission
+        if (this.isSubmittingEmail) {
+            console.log('Email submission already in progress, ignoring duplicate');
+            return;
+        }
+        this.isSubmittingEmail = true;
         
         const email = document.getElementById('share-email').value;
         const role = document.getElementById('share-role-email').value;
@@ -298,6 +309,7 @@ class SharingManager {
         } finally {
             submitBtn.innerHTML = originalText;
             submitBtn.disabled = false;
+            this.isSubmittingEmail = false;
         }
     }
 
@@ -478,11 +490,12 @@ class SharingManager {
     }
 
     createCollaboratorItem(collaborator) {
+        console.log('Creating collaborator:', collaborator.name, 'is_owner:', collaborator.is_owner, 'role:', collaborator.role);
         const item = document.createElement('div');
         item.className = 'collaborator-item bg-gray-800/30 rounded-lg p-4 flex items-center justify-between hover:bg-gray-800/50 transition-colors';
         
-        const roleColor = this.getRoleColor(collaborator.role);
-        const roleIcon = this.getRoleIcon(collaborator.role);
+        const roleColor = this.getRoleColor(collaborator.is_owner ? 'owner' : collaborator.role);
+        const roleIcon = this.getRoleIcon(collaborator.is_owner ? 'owner' : collaborator.role);
         
         item.innerHTML = `
             <div class="flex items-center space-x-4">
@@ -494,7 +507,7 @@ class SharingManager {
                     <p class="text-gray-400 text-sm">${collaborator.email || 'No email'}</p>
                     <div class="flex items-center space-x-2 mt-1">
                         <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${roleColor}">
-                            <i class="${roleIcon} mr-1"></i>${(collaborator.role || 'viewer').charAt(0).toUpperCase() + (collaborator.role || 'viewer').slice(1)}
+                            <i class="${roleIcon} mr-1"></i>${collaborator.is_owner ? 'Owner' : (collaborator.role || 'viewer').charAt(0).toUpperCase() + (collaborator.role || 'viewer').slice(1)}
                         </span>
                         <span class="text-xs text-gray-500">
                             ${collaborator.status === 'pending' ? 'Invitation pending' : `Joined ${this.formatDate(collaborator.accepted_at)}`}
@@ -503,10 +516,10 @@ class SharingManager {
                 </div>
             </div>
             <div class="flex items-center space-x-2">
-                ${(collaborator.role || 'viewer') !== 'owner' ? `
+                ${!collaborator.is_owner && collaborator.role !== 'owner' ? `
                     ${this.userPermissions.can_manage_collaborators ? `
                         <select class="role-select px-3 py-1 bg-gray-700 border border-gray-600 rounded text-white text-sm" 
-                                data-user-id="${collaborator.user_id || ''}" data-current-role="${collaborator.role || 'viewer'}">
+                                data-user-id="${collaborator.user_id || collaborator.id || 'undefined'}" data-current-role="${collaborator.role || 'viewer'}" data-collaborator-id="${collaborator.id || 'undefined'}">
                             <option value="viewer" ${(collaborator.role || 'viewer') === 'viewer' ? 'selected' : ''}>Viewer</option>
                             <option value="editor" ${(collaborator.role || 'viewer') === 'editor' ? 'selected' : ''}>Editor</option>
                             <option value="admin" ${(collaborator.role || 'viewer') === 'admin' ? 'selected' : ''}>Admin</option>
@@ -972,6 +985,7 @@ class SharingManager {
         const currentRole = e.target.dataset.currentRole;
         const newRole = e.target.value;
         
+        
         if (currentRole === newRole) return;
 
         // Show confirmation modal
@@ -1016,6 +1030,11 @@ class SharingManager {
 
     async updateCollaboratorRole(userId, newRole) {
         try {
+            if (!userId || userId === 'undefined' || userId === '') {
+                this.showNotification('Invalid user ID for role update', 'error');
+                return;
+            }
+            
             const response = await fetch(`/api/projects/${this.projectId}/collaborators/${userId}`, {
                 method: 'PUT',
                 headers: {
@@ -1098,7 +1117,7 @@ class SharingManager {
 document.addEventListener('DOMContentLoaded', function() {
     // Get project ID from the page (you might need to adjust this based on your template)
     const projectIdElement = document.querySelector('[data-project-id]');
-    if (projectIdElement) {
+    if (projectIdElement && !window.sharingManager) {
         const projectId = projectIdElement.dataset.projectId;
         window.sharingManager = new SharingManager(projectId);
     }

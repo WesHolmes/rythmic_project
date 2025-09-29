@@ -59,6 +59,10 @@ class AzureProductionMigration:
                 if not self._run_task_workflow_migration(db):
                     return False
                 
+                # Step 2.7: Run task flagging migration
+                if not self._run_task_flagging_migration(db):
+                    return False
+                
                 # Step 3: Create optimized indexes
                 if not self._create_indexes(db.engine):
                     return False
@@ -500,6 +504,133 @@ class AzureProductionMigration:
         except Exception as e:
             logger.warning(f"Some task workflow indexes may not have been created: {str(e)}")
     
+    def _run_task_flagging_migration(self, db) -> bool:
+        """Run task flagging migration to add flagging columns"""
+        try:
+            logger.info("Running task flagging migration...")
+            
+            from sqlalchemy import inspect, text
+            
+            # Check if the columns already exist
+            inspector = inspect(db.engine)
+            columns = [col['name'] for col in inspector.get_columns('task')]
+            
+            new_columns = ['is_flagged', 'flag_comment', 'flagged_by', 'flagged_at', 'flag_resolved', 'flag_resolved_at', 'flag_resolved_by']
+            existing_columns = [col for col in new_columns if col in columns]
+            
+            if existing_columns:
+                logger.info(f"Task flagging columns already exist: {existing_columns}")
+                self._log_step(f"Task flagging columns already exist: {existing_columns}")
+                return True
+            
+            columns_to_add = [col for col in new_columns if col not in columns]
+            
+            if not columns_to_add:
+                logger.info("All task flagging columns already exist. Migration not needed.")
+                self._log_step("All task flagging columns already exist")
+                return True
+            
+            # Add the new columns
+            with db.engine.connect() as conn:
+                # Add is_flagged column
+                if 'is_flagged' not in columns:
+                    try:
+                        conn.execute(text("""
+                            ALTER TABLE task 
+                            ADD is_flagged BOOLEAN DEFAULT 0
+                        """))
+                        logger.info("✓ Added 'is_flagged' column")
+                    except Exception as e:
+                        logger.warning(f"Could not add 'is_flagged' column: {e}")
+                
+                # Add flag_comment column
+                if 'flag_comment' not in columns:
+                    try:
+                        conn.execute(text("""
+                            ALTER TABLE task 
+                            ADD flag_comment TEXT
+                        """))
+                        logger.info("✓ Added 'flag_comment' column")
+                    except Exception as e:
+                        logger.warning(f"Could not add 'flag_comment' column: {e}")
+                
+                # Add flagged_by column
+                if 'flagged_by' not in columns:
+                    try:
+                        conn.execute(text("""
+                            ALTER TABLE task 
+                            ADD flagged_by INTEGER REFERENCES [user](id)
+                        """))
+                        logger.info("✓ Added 'flagged_by' column")
+                    except Exception as e:
+                        logger.warning(f"Could not add 'flagged_by' column: {e}")
+                
+                # Add flagged_at column
+                if 'flagged_at' not in columns:
+                    try:
+                        conn.execute(text("""
+                            ALTER TABLE task 
+                            ADD flagged_at DATETIME2
+                        """))
+                        logger.info("✓ Added 'flagged_at' column")
+                    except Exception as e:
+                        logger.warning(f"Could not add 'flagged_at' column: {e}")
+                
+                # Add flag_resolved column
+                if 'flag_resolved' not in columns:
+                    try:
+                        conn.execute(text("""
+                            ALTER TABLE task 
+                            ADD flag_resolved BOOLEAN DEFAULT 0
+                        """))
+                        logger.info("✓ Added 'flag_resolved' column")
+                    except Exception as e:
+                        logger.warning(f"Could not add 'flag_resolved' column: {e}")
+                
+                # Add flag_resolved_at column
+                if 'flag_resolved_at' not in columns:
+                    try:
+                        conn.execute(text("""
+                            ALTER TABLE task 
+                            ADD flag_resolved_at DATETIME2
+                        """))
+                        logger.info("✓ Added 'flag_resolved_at' column")
+                    except Exception as e:
+                        logger.warning(f"Could not add 'flag_resolved_at' column: {e}")
+                
+                # Add flag_resolved_by column
+                if 'flag_resolved_by' not in columns:
+                    try:
+                        conn.execute(text("""
+                            ALTER TABLE task 
+                            ADD flag_resolved_by INTEGER REFERENCES [user](id)
+                        """))
+                        logger.info("✓ Added 'flag_resolved_by' column")
+                    except Exception as e:
+                        logger.warning(f"Could not add 'flag_resolved_by' column: {e}")
+                
+                conn.commit()
+            
+            # Verify columns were added
+            inspector = inspect(db.engine)
+            updated_columns = [col['name'] for col in inspector.get_columns('task')]
+            
+            added_columns = [col for col in new_columns if col in updated_columns]
+            
+            if len(added_columns) == len(columns_to_add):
+                logger.info(f"✓ Task flagging migration completed! Added {len(added_columns)} columns.")
+                self._log_step(f"Added task flagging columns: {added_columns}")
+                return True
+            else:
+                logger.warning(f"Task flagging migration partially failed. Added {len(added_columns)}/{len(columns_to_add)} columns.")
+                self._log_step(f"Task flagging migration partially failed")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Task flagging migration failed: {str(e)}")
+            self._log_step(f"Task flagging migration failed: {str(e)}")
+            return False
+    
     def _create_indexes(self, engine) -> bool:
         """Create optimized indexes for Azure database"""
         try:
@@ -517,7 +648,10 @@ class AzureProductionMigration:
                         "CREATE INDEX idx_sharing_tokens_project_id ON sharing_tokens(project_id)",
                         "CREATE INDEX idx_sharing_tokens_token ON sharing_tokens(token)",
                         "CREATE INDEX idx_sharing_activity_log_project_id ON sharing_activity_log(project_id)",
-                        "CREATE INDEX idx_sharing_activity_log_created_at ON sharing_activity_log(created_at)"
+                        "CREATE INDEX idx_sharing_activity_log_created_at ON sharing_activity_log(created_at)",
+                        "CREATE INDEX idx_task_is_flagged ON task(is_flagged)",
+                        "CREATE INDEX idx_task_flagged_by ON task(flagged_by)",
+                        "CREATE INDEX idx_task_flag_resolved ON task(flag_resolved)"
                     ]
                     
                     created_count = 0

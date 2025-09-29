@@ -294,17 +294,22 @@ def fix_database_schema():
         
         # Check if workflow columns are missing
         workflow_columns = ['workflow_status', 'started_at', 'committed_at', 'completed_at']
-        missing_columns = [col for col in workflow_columns if col not in columns]
+        workflow_missing = [col for col in workflow_columns if col not in columns]
         
-        if not missing_columns:
-            print("All workflow columns already exist")
+        # Check if flagging columns are missing
+        flagging_columns = ['is_flagged', 'flag_comment', 'flagged_by', 'flagged_at', 'flag_resolved', 'flag_resolved_at', 'flag_resolved_by']
+        flagging_missing = [col for col in flagging_columns if col not in columns]
+        
+        if not workflow_missing and not flagging_missing:
+            print("All workflow and flagging columns already exist")
             return True
         
-        print(f"Missing workflow columns: {missing_columns}")
+        print(f"Missing workflow columns: {workflow_missing}")
+        print(f"Missing flagging columns: {flagging_missing}")
         
         # Add missing columns
         with db.engine.connect() as conn:
-            # Add workflow_status column
+            # Add workflow columns
             if 'workflow_status' not in columns:
                 try:
                     conn.execute(text("""
@@ -315,7 +320,6 @@ def fix_database_schema():
                 except Exception as e:
                     print(f"Could not add workflow_status column: {e}")
             
-            # Add started_at column
             if 'started_at' not in columns:
                 try:
                     conn.execute(text("""
@@ -326,7 +330,6 @@ def fix_database_schema():
                 except Exception as e:
                     print(f"Could not add started_at column: {e}")
             
-            # Add committed_at column
             if 'committed_at' not in columns:
                 try:
                     conn.execute(text("""
@@ -337,7 +340,6 @@ def fix_database_schema():
                 except Exception as e:
                     print(f"Could not add committed_at column: {e}")
             
-            # Add completed_at column
             if 'completed_at' not in columns:
                 try:
                     conn.execute(text("""
@@ -348,22 +350,94 @@ def fix_database_schema():
                 except Exception as e:
                     print(f"Could not add completed_at column: {e}")
             
+            # Add flagging columns
+            if 'is_flagged' not in columns:
+                try:
+                    conn.execute(text("""
+                        ALTER TABLE task 
+                        ADD is_flagged BOOLEAN DEFAULT 0
+                    """))
+                    print("✓ Added is_flagged column")
+                except Exception as e:
+                    print(f"Could not add is_flagged column: {e}")
+            
+            if 'flag_comment' not in columns:
+                try:
+                    conn.execute(text("""
+                        ALTER TABLE task 
+                        ADD flag_comment TEXT
+                    """))
+                    print("✓ Added flag_comment column")
+                except Exception as e:
+                    print(f"Could not add flag_comment column: {e}")
+            
+            if 'flagged_by' not in columns:
+                try:
+                    conn.execute(text("""
+                        ALTER TABLE task 
+                        ADD flagged_by INTEGER REFERENCES [user](id)
+                    """))
+                    print("✓ Added flagged_by column")
+                except Exception as e:
+                    print(f"Could not add flagged_by column: {e}")
+            
+            if 'flagged_at' not in columns:
+                try:
+                    conn.execute(text("""
+                        ALTER TABLE task 
+                        ADD flagged_at DATETIME2
+                    """))
+                    print("✓ Added flagged_at column")
+                except Exception as e:
+                    print(f"Could not add flagged_at column: {e}")
+            
+            if 'flag_resolved' not in columns:
+                try:
+                    conn.execute(text("""
+                        ALTER TABLE task 
+                        ADD flag_resolved BOOLEAN DEFAULT 0
+                    """))
+                    print("✓ Added flag_resolved column")
+                except Exception as e:
+                    print(f"Could not add flag_resolved column: {e}")
+            
+            if 'flag_resolved_at' not in columns:
+                try:
+                    conn.execute(text("""
+                        ALTER TABLE task 
+                        ADD flag_resolved_at DATETIME2
+                    """))
+                    print("✓ Added flag_resolved_at column")
+                except Exception as e:
+                    print(f"Could not add flag_resolved_at column: {e}")
+            
+            if 'flag_resolved_by' not in columns:
+                try:
+                    conn.execute(text("""
+                        ALTER TABLE task 
+                        ADD flag_resolved_by INTEGER REFERENCES [user](id)
+                    """))
+                    print("✓ Added flag_resolved_by column")
+                except Exception as e:
+                    print(f"Could not add flag_resolved_by column: {e}")
+            
             # Update existing tasks to have proper workflow_status
-            try:
-                conn.execute(text("""
-                    UPDATE task 
-                    SET workflow_status = CASE 
-                        WHEN status = 'backlog' THEN 'backlog'
-                        WHEN status = 'committed' THEN 'committed' 
-                        WHEN status = 'in_progress' THEN 'in_progress'
-                        WHEN status = 'blocked' THEN 'in_progress'
-                        WHEN status = 'completed' THEN 'completed'
-                        ELSE 'backlog'
-                    END
-                """))
-                print("✓ Updated existing tasks with workflow_status")
-            except Exception as e:
-                print(f"Could not update existing tasks: {e}")
+            if workflow_missing:
+                try:
+                    conn.execute(text("""
+                        UPDATE task 
+                        SET workflow_status = CASE 
+                            WHEN status = 'backlog' THEN 'backlog'
+                            WHEN status = 'committed' THEN 'committed' 
+                            WHEN status = 'in_progress' THEN 'in_progress'
+                            WHEN status = 'blocked' THEN 'in_progress'
+                            WHEN status = 'completed' THEN 'completed'
+                            ELSE 'backlog'
+                        END
+                    """))
+                    print("✓ Updated existing tasks with workflow_status")
+                except Exception as e:
+                    print(f"Could not update existing tasks: {e}")
             
             conn.commit()
         

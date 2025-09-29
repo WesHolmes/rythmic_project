@@ -355,7 +355,7 @@ def fix_database_schema():
                 try:
                     conn.execute(text("""
                         ALTER TABLE task 
-                        ADD is_flagged BOOLEAN DEFAULT 0
+                        ADD is_flagged BIT DEFAULT 0
                     """))
                     print("✓ Added is_flagged column")
                 except Exception as e:
@@ -395,7 +395,7 @@ def fix_database_schema():
                 try:
                     conn.execute(text("""
                         ALTER TABLE task 
-                        ADD flag_resolved BOOLEAN DEFAULT 0
+                        ADD flag_resolved BIT DEFAULT 0
                     """))
                     print("✓ Added flag_resolved column")
                 except Exception as e:
@@ -1438,22 +1438,22 @@ def projects():
             print("Attempting to fix database schema issues...")
             if fix_database_schema():
                 print("Schema fix completed, retrying projects route...")
-                # Retry the original request
-                return projects()
+                # Retry the original request by redirecting to avoid recursion
+                return redirect(url_for('projects'))
             else:
                 print("Schema fix failed, trying migration approach...")
                 from migrations.azure_production_migration import run_production_migration
                 migration_success = run_production_migration()
                 if migration_success:
                     print("Migration completed, retrying projects route...")
-                    return projects()
+                    return redirect(url_for('projects'))
                 else:
                     print("Migration failed, trying alternative approach...")
                     try:
                         from migrations.add_task_assignment import run_migration
                         if run_migration():
                             print("Alternative migration completed, retrying projects route...")
-                            return projects()
+                            return redirect(url_for('projects'))
                     except Exception as alt_error:
                         print(f"Alternative migration also failed: {alt_error}")
                     

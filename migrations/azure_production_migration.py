@@ -537,7 +537,7 @@ class AzureProductionMigration:
                     try:
                         conn.execute(text("""
                             ALTER TABLE task 
-                            ADD is_flagged BOOLEAN DEFAULT 0
+                            ADD is_flagged BIT DEFAULT 0
                         """))
                         logger.info("✓ Added 'is_flagged' column")
                     except Exception as e:
@@ -581,7 +581,7 @@ class AzureProductionMigration:
                     try:
                         conn.execute(text("""
                             ALTER TABLE task 
-                            ADD flag_resolved BOOLEAN DEFAULT 0
+                            ADD flag_resolved BIT DEFAULT 0
                         """))
                         logger.info("✓ Added 'flag_resolved' column")
                     except Exception as e:

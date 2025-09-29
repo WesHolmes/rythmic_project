@@ -33,7 +33,7 @@ def add_task_flagging_fields():
             if 'is_flagged' not in columns:
                 conn.execute(text("""
                     ALTER TABLE task 
-                    ADD is_flagged BOOLEAN DEFAULT 0
+                    ADD is_flagged BIT DEFAULT 0
                 """))
                 print("✓ Added 'is_flagged' column")
             
@@ -65,7 +65,7 @@ def add_task_flagging_fields():
             if 'flag_resolved' not in columns:
                 conn.execute(text("""
                     ALTER TABLE task 
-                    ADD flag_resolved BOOLEAN DEFAULT 0
+                    ADD flag_resolved BIT DEFAULT 0
                 """))
                 print("✓ Added 'flag_resolved' column")
             

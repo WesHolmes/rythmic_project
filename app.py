@@ -501,7 +501,18 @@ class TaskLabel(db.Model):
     __tablename__ = 'task_labels'
     task_id = db.Column(db.Integer, db.ForeignKey('task.id'), primary_key=True)
     label_id = db.Column(db.Integer, db.ForeignKey('label.id'), primary_key=True)
+
+class DiscussionComment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    comment = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    task = db.relationship('Task', backref='discussion_comments')
+    user = db.relationship('User', backref='discussion_comments')
 
 class TaskDependency(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -545,6 +556,15 @@ class Task(db.Model):
     committed_at = db.Column(db.DateTime, nullable=True)  # When task was committed
     completed_at = db.Column(db.DateTime, nullable=True)  # When task was completed
     
+    # Task Flagging Fields
+    is_flagged = db.Column(db.Boolean, default=False)  # Whether task is flagged for clarification
+    flag_comment = db.Column(db.Text)  # Comment explaining what needs clarification
+    flagged_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # User who flagged the task
+    flagged_at = db.Column(db.DateTime, nullable=True)  # When the task was flagged
+    flag_resolved = db.Column(db.Boolean, default=False)  # Whether the flag has been resolved
+    flag_resolved_at = db.Column(db.DateTime, nullable=True)  # When the flag was resolved
+    flag_resolved_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # User who resolved the flag
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -552,6 +572,8 @@ class Task(db.Model):
     owner = db.relationship('User', backref='tasks', foreign_keys=[owner_id])
     assigned_user = db.relationship('User', foreign_keys=[assigned_to], backref='assigned_tasks')
     assigner = db.relationship('User', foreign_keys=[assigned_by], backref='assigned_tasks_by_me')
+    flagged_user = db.relationship('User', foreign_keys=[flagged_by], backref='flagged_tasks')
+    flag_resolver = db.relationship('User', foreign_keys=[flag_resolved_by], backref='resolved_flags')
     children = db.relationship('Task', backref=db.backref('parent', remote_side=[id]), lazy=True)
     labels = db.relationship('Label', secondary='task_labels', back_populates='tasks')
     
@@ -665,6 +687,75 @@ class Task(db.Model):
     def get_reset_button_text(self):
         """Get the reset button text"""
         return 'Reset'
+    
+    # Flagging Methods
+    def flag_task(self, user_id, comment):
+        """Flag a task for clarification"""
+        if self.is_flagged and not self.flag_resolved:
+            return False, "Task is already flagged and not resolved"
+        
+        self.is_flagged = True
+        self.flag_comment = comment
+        self.flagged_by = user_id
+        self.flagged_at = datetime.utcnow()
+        self.flag_resolved = False
+        self.flag_resolved_at = None
+        self.flag_resolved_by = None
+        self.updated_at = datetime.utcnow()
+        return True, "Task flagged successfully"
+    
+    def resolve_flag(self, user_id):
+        """Resolve a flagged task - clears flag but keeps discussion comments"""
+        if not self.is_flagged:
+            return False, "Task is not flagged"
+        
+        # Clear the flag but keep discussion comments
+        self.is_flagged = False
+        self.flag_comment = None
+        self.flagged_by = None
+        self.flagged_at = None
+        self.flag_resolved = False
+        self.flag_resolved_at = None
+        self.flag_resolved_by = None
+        self.updated_at = datetime.utcnow()
+        return True, "Flag resolved successfully - ready for new clarification requests"
+    
+    def unflag_task(self, user_id):
+        """Remove flag from task (only if user is the one who flagged it or task owner)"""
+        if not self.is_flagged:
+            return False, "Task is not flagged"
+        
+        # Only allow the person who flagged it or the task owner to unflag
+        if self.flagged_by != user_id and self.owner_id != user_id:
+            return False, "Only the person who flagged the task or the task owner can remove the flag"
+        
+        self.is_flagged = False
+        self.flag_comment = None
+        self.flagged_by = None
+        self.flagged_at = None
+        self.flag_resolved = False
+        self.flag_resolved_at = None
+        self.flag_resolved_by = None
+        self.updated_at = datetime.utcnow()
+        return True, "Flag removed successfully"
+    
+    def get_flag_status(self):
+        """Get the current flag status for display"""
+        if not self.is_flagged:
+            return "not_flagged"
+        elif self.flag_resolved:
+            return "resolved"
+        else:
+            return "flagged"
+    
+    def get_flag_color(self):
+        """Get the appropriate flag color based on status"""
+        if not self.is_flagged:
+            return "text-gray-500"
+        elif self.flag_resolved:
+            return "text-green-500"
+        else:
+            return "text-red-500"
     
     def get_reset_button_class(self):
         """Get the reset button CSS class"""
@@ -1511,6 +1602,8 @@ def view_project(id):
         'can_manage_collaborators': PermissionManager.has_permission(current_user.id, id, 'manage_collaborators'),
         'can_view_collaborators': True,  # All roles can view collaborators
         'can_manage_share_links': project.owner_id == current_user.id,  # Only owner can manage share links
+        'can_flag_tasks': True,  # All project collaborators can flag tasks for clarification
+        'can_resolve_flags': user_role in ['owner', 'admin'],  # Only owners and admins can resolve flags
         'is_owner': project.owner_id == current_user.id
     }
     
@@ -1992,6 +2085,225 @@ def delete_task(project_id, task_id):
     db.session.commit()
     flash(f'Task "{task_title}" has been deleted')
     return redirect(url_for('view_project', id=project_id))
+
+# Task Flagging Routes
+@app.route('/projects/<int:project_id>/tasks/<int:task_id>/flag', methods=['POST'])
+@login_required
+def flag_task(project_id, task_id):
+    """Flag a task for clarification"""
+    from services.permission_manager import PermissionManager
+    
+    project = Project.query.get_or_404(project_id)
+    task = Task.query.get_or_404(task_id)
+    
+    # Check if user can access the project and task belongs to project
+    if not PermissionManager.can_access_project(current_user.id, project_id) or task.project_id != project_id:
+        return jsonify({'error': 'You do not have permission to flag tasks in this project'}), 403
+    
+    data = request.get_json()
+    comment = data.get('comment', '').strip()
+    
+    if not comment:
+        return jsonify({'error': 'Comment is required when flagging a task'}), 400
+    
+    success, message = task.flag_task(current_user.id, comment)
+    
+    if success:
+        # Log the activity
+        SharingActivityLog.log_activity(
+            project_id=project_id,
+            action='task_flagged',
+            user_id=current_user.id,
+            details=f"Task '{task.title}' flagged by {current_user.name}: {comment}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
+        )
+        
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': message,
+            'flag_status': task.get_flag_status(),
+            'flag_color': task.get_flag_color()
+        })
+    else:
+        return jsonify({'error': message}), 400
+
+@app.route('/projects/<int:project_id>/tasks/<int:task_id>/resolve-flag', methods=['POST'])
+@login_required
+def resolve_task_flag(project_id, task_id):
+    """Resolve a flagged task"""
+    from services.permission_manager import PermissionManager
+    
+    project = Project.query.get_or_404(project_id)
+    task = Task.query.get_or_404(task_id)
+    
+    # Check if user can access the project and task belongs to project
+    if not PermissionManager.can_access_project(current_user.id, project_id) or task.project_id != project_id:
+        return jsonify({'error': 'You do not have permission to resolve flags in this project'}), 403
+    
+    # Only owners and admins can resolve flags
+    user_role = PermissionManager.get_user_role(current_user.id, project_id)
+    if user_role not in ['owner', 'admin']:
+        return jsonify({'error': 'Only project owners and admins can resolve flags'}), 403
+    
+    success, message = task.resolve_flag(current_user.id)
+    
+    if success:
+        # Log the activity
+        SharingActivityLog.log_activity(
+            project_id=project_id,
+            action='task_flag_resolved',
+            user_id=current_user.id,
+            details=f"Flag resolved for task '{task.title}' by {current_user.name}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
+        )
+        
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': message,
+            'flag_status': task.get_flag_status(),
+            'flag_color': task.get_flag_color()
+        })
+    else:
+        return jsonify({'error': message}), 400
+
+@app.route('/projects/<int:project_id>/tasks/<int:task_id>/unflag', methods=['POST'])
+@login_required
+def unflag_task(project_id, task_id):
+    """Remove flag from a task"""
+    from services.permission_manager import PermissionManager
+    
+    project = Project.query.get_or_404(project_id)
+    task = Task.query.get_or_404(task_id)
+    
+    # Check if user can access the project and task belongs to project
+    if not PermissionManager.can_access_project(current_user.id, project_id) or task.project_id != project_id:
+        return jsonify({'error': 'You do not have permission to unflag tasks in this project'}), 403
+    
+    success, message = task.unflag_task(current_user.id)
+    
+    if success:
+        # Log the activity
+        SharingActivityLog.log_activity(
+            project_id=project_id,
+            action='task_unflagged',
+            user_id=current_user.id,
+            details=f"Flag removed from task '{task.title}' by {current_user.name}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
+        )
+        
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': message,
+            'flag_status': task.get_flag_status(),
+            'flag_color': task.get_flag_color()
+        })
+    else:
+        return jsonify({'error': message}), 400
+
+@app.route('/projects/<int:project_id>/tasks/<int:task_id>/discussion', methods=['GET'])
+@login_required
+def get_task_discussion(project_id, task_id):
+    """Get task discussion details for non-admin users"""
+    from services.permission_manager import PermissionManager
+    
+    project = Project.query.get_or_404(project_id)
+    task = Task.query.get_or_404(task_id)
+    
+    # Check if user can access the project and task belongs to project
+    if not PermissionManager.can_access_project(current_user.id, project_id) or task.project_id != project_id:
+        return jsonify({'error': 'You do not have permission to view this discussion'}), 403
+    
+    # Check if task has discussion comments (either flagged or previously flagged)
+    has_comments = DiscussionComment.query.filter_by(task_id=task_id).first() is not None
+    if not task.is_flagged and not has_comments:
+        return jsonify({'error': 'No discussion available for this task'}), 404
+    
+    # Get flagger details
+    flagger = User.query.get(task.flagged_by) if task.flagged_by else None
+    
+    # Get discussion comments
+    comments = DiscussionComment.query.filter_by(task_id=task_id).order_by(DiscussionComment.created_at.asc()).all()
+    comments_data = []
+    for comment in comments:
+        comments_data.append({
+            'id': comment.id,
+            'comment': comment.comment,
+            'user_name': comment.user.name,
+            'created_at': comment.created_at.isoformat()
+        })
+    
+    return jsonify({
+        'comment': task.flag_comment,
+        'flagged_by': flagger.name if flagger else 'Unknown',
+        'flagged_at': task.flagged_at.isoformat() if task.flagged_at else None,
+        'is_resolved': task.flag_resolved,
+        'resolved_by': task.flag_resolver.name if task.flag_resolver else None,
+        'resolved_at': task.flag_resolved_at.isoformat() if task.flag_resolved_at else None,
+        'is_flagged': task.is_flagged,
+        'comments': comments_data
+    })
+
+@app.route('/projects/<int:project_id>/tasks/<int:task_id>/discussion/comment', methods=['POST'])
+@login_required
+def add_discussion_comment(project_id, task_id):
+    """Add a comment to the task discussion"""
+    from services.permission_manager import PermissionManager
+    
+    project = Project.query.get_or_404(project_id)
+    task = Task.query.get_or_404(task_id)
+    
+    # Check if user can access the project and task belongs to project
+    if not PermissionManager.can_access_project(current_user.id, project_id) or task.project_id != project_id:
+        return jsonify({'error': 'You do not have permission to add comments to this discussion'}), 403
+    
+    # Allow comments if task is flagged OR has existing discussion comments
+    has_comments = DiscussionComment.query.filter_by(task_id=task_id).first() is not None
+    if not task.is_flagged and not has_comments:
+        return jsonify({'error': 'No discussion available for this task'}), 404
+    
+    data = request.get_json()
+    comment_text = data.get('comment', '').strip()
+    
+    if not comment_text:
+        return jsonify({'error': 'Comment cannot be empty'}), 400
+    
+    # Create discussion comment
+    comment = DiscussionComment(
+        task_id=task_id,
+        user_id=current_user.id,
+        comment=comment_text
+    )
+    
+    db.session.add(comment)
+    
+    # Log the activity
+    SharingActivityLog.log_activity(
+        project_id=project_id,
+        action='discussion_comment_added',
+        user_id=current_user.id,
+        details=f"Added comment to discussion for task '{task.title}'",
+        ip_address=request.remote_addr,
+        user_agent=request.headers.get('User-Agent')
+    )
+    
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'message': 'Comment added successfully',
+        'comment': {
+            'id': comment.id,
+            'comment': comment.comment,
+            'user_name': current_user.name,
+            'created_at': comment.created_at.isoformat()
+        }
+    })
 
 # CSV Import/Export
 @app.route('/projects/<int:id>/export')

@@ -439,6 +439,17 @@
                             {% endif %}
                             {% endif %}
                             
+                            <!-- Task Flag/Discussion Button (All users) -->
+                            {% if task.is_flagged and task.flag_comment or task.discussion_comments or user_permissions.can_resolve_flags %}
+                            <button
+                                class="task-flag-btn text-gray-500 hover:text-orange-400 p-1.5 rounded-md hover:bg-orange-500/10 transition-all duration-200 {{ task.get_flag_color() if task.is_flagged else 'text-gray-500' }}"
+                                data-task-id="{{ task.id }}" 
+                                data-flag-status="{{ task.get_flag_status() }}"
+                                title="{% if task.is_flagged %}{% if task.flag_resolved %}Flag resolved{% else %}Flagged for clarification{% endif %}{% elif task.discussion_comments %}View discussion{% else %}Flag for clarification{% endif %}">
+                                <i class="fas fa-flag text-sm"></i>
+                            </button>
+                            {% endif %}
+                            
                             <!-- Task Details Dropdown Toggle -->
                             <button
                                 class="task-details-toggle text-gray-500 hover:text-blue-400 p-1.5 rounded-md hover:bg-blue-500/10 transition-all duration-200"
@@ -779,6 +790,111 @@
         </div>
     </div>
 </div>
+
+<!-- Task Flag Comment Modal -->
+<div id="flag-comment-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="glass rounded-2xl p-6 w-full max-w-md mx-4">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-xl font-semibold text-white">
+                <i class="fas fa-flag mr-2 text-orange-400"></i>Flag Task for Clarification
+            </h3>
+            <button id="close-flag-modal" class="text-gray-400 hover:text-white">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-300 mb-2">
+                    What needs clarification?
+                </label>
+                <textarea 
+                    id="flag-comment-text" 
+                    rows="4" 
+                    class="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none"
+                    placeholder="Please explain what needs clarification about this task..."></textarea>
+            </div>
+            
+            <div class="flex justify-end space-x-3">
+                <button id="cancel-flag" class="px-4 py-2 text-gray-400 hover:text-white transition-colors">
+                    Cancel
+                </button>
+                <button id="submit-flag" class="btn-primary px-4 py-2 text-white rounded-xl font-semibold bg-orange-600 hover:bg-orange-700">
+                    <i class="fas fa-flag mr-2"></i>Flag Task
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Task Flag/Discussion Modal -->
+<div id="flag-discussion-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="glass rounded-2xl p-6 w-full max-w-2xl mx-4 max-h-[80vh] overflow-y-auto">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-xl font-semibold text-white">
+                <i class="fas fa-flag mr-2 text-orange-400"></i>Task Discussion
+            </h3>
+            <button id="close-flag-discussion-modal" class="text-gray-400 hover:text-white">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <div class="space-y-4">
+            <!-- Current Flag Section (if flagged) -->
+            <div id="current-flag-section" class="p-4 bg-gray-800/50 rounded-lg">
+                <h4 class="text-sm font-semibold text-gray-300 mb-2">Current Clarification Request:</h4>
+                <p id="flag-comment-display" class="text-gray-300 text-sm mb-3"></p>
+                <div class="text-xs text-gray-400">
+                    <span id="flagged-by-display"></span> • <span id="flagged-at-display"></span>
+                </div>
+            </div>
+            
+            <!-- Discussion Thread -->
+            <div id="discussion-thread" class="space-y-3">
+                <!-- Discussion comments will be loaded here -->
+            </div>
+            
+            <!-- Add Comment Section -->
+            <div class="border-t border-gray-700 pt-4">
+                <h4 class="text-sm font-semibold text-gray-300 mb-3">Add to Discussion</h4>
+                <div class="space-y-3">
+                    <textarea 
+                        id="discussion-comment-text" 
+                        rows="3" 
+                        class="w-full px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                        placeholder="Add your thoughts or ask follow-up questions..."></textarea>
+                    <div class="flex justify-between items-center">
+                        <div class="text-xs text-gray-400">
+                            Press Ctrl+Enter to submit
+                        </div>
+                        <div class="flex space-x-2">
+                            <button id="submit-discussion-comment" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
+                                <i class="fas fa-paper-plane mr-2"></i>Add Comment
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div class="flex justify-between items-center pt-4 border-t border-gray-700">
+                <div>
+                    {% if user_permissions.can_resolve_flags %}
+                    <button id="resolve-flag" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors">
+                        <i class="fas fa-check mr-2"></i>Mark as Resolved
+                    </button>
+                    {% endif %}
+                </div>
+                <div class="flex space-x-3">
+                    <button id="close-flag-discussion" class="px-4 py-2 text-gray-400 hover:text-white transition-colors">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 
 {% endblock %}
 
@@ -2810,5 +2926,284 @@
 
     // Load collaborators on page load
     loadCollaborators();
+
+    // Task Flagging Functionality
+    let currentFlagTaskId = null;
+
+    // Flag/Discussion button click handlers (All users)
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.task-flag-btn')) {
+            const button = e.target.closest('.task-flag-btn');
+            const taskId = button.dataset.taskId;
+            const flagStatus = button.dataset.flagStatus;
+            
+            currentFlagTaskId = taskId;
+            
+            if (flagStatus === 'not_flagged') {
+                // Show flag comment modal for new flags
+                showFlagCommentModal();
+            } else {
+                // Show unified flag/discussion modal
+                showFlagDiscussionModal(taskId);
+            }
+        }
+    });
+
+    // Modal close handlers
+    document.getElementById('close-flag-modal').addEventListener('click', hideFlagCommentModal);
+    document.getElementById('close-flag-discussion-modal').addEventListener('click', hideFlagDiscussionModal);
+    document.getElementById('cancel-flag').addEventListener('click', hideFlagCommentModal);
+    document.getElementById('close-flag-discussion').addEventListener('click', hideFlagDiscussionModal);
+    document.getElementById('submit-discussion-comment').addEventListener('click', submitDiscussionComment);
+
+    // Submit flag handler
+    document.getElementById('submit-flag').addEventListener('click', async function() {
+        const comment = document.getElementById('flag-comment-text').value.trim();
+        
+        if (!comment) {
+            showNotification('Please enter a comment explaining what needs clarification', 'error');
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/projects/{{ project.id }}/tasks/${currentFlagTaskId}/flag`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ comment: comment })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                updateFlagUI(currentFlagTaskId, data.flag_status, data.flag_color);
+                showNotification(data.message, 'success');
+                hideFlagCommentModal();
+            } else {
+                showNotification(data.error || 'Failed to flag task', 'error');
+            }
+        } catch (error) {
+            console.error('Error flagging task:', error);
+            showNotification('Failed to flag task', 'error');
+        }
+    });
+
+    // Resolve flag handler (only if user has permission)
+    const resolveFlagBtn = document.getElementById('resolve-flag');
+    if (resolveFlagBtn) {
+        resolveFlagBtn.addEventListener('click', async function() {
+        try {
+            const response = await fetch(`/projects/{{ project.id }}/tasks/${currentFlagTaskId}/resolve-flag`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                updateFlagUI(currentFlagTaskId, data.flag_status, data.flag_color);
+                showNotification(data.message, 'success');
+                hideFlagDiscussionModal();
+            } else {
+                showNotification(data.error || 'Failed to resolve flag', 'error');
+            }
+        } catch (error) {
+            console.error('Error resolving flag:', error);
+            showNotification('Failed to resolve flag', 'error');
+        }
+        });
+    }
+
+    function showFlagCommentModal() {
+        document.getElementById('flag-comment-modal').classList.remove('hidden');
+        document.getElementById('flag-comment-text').value = '';
+        document.getElementById('flag-comment-text').focus();
+    }
+
+    function hideFlagCommentModal() {
+        document.getElementById('flag-comment-modal').classList.add('hidden');
+        currentFlagTaskId = null;
+    }
+
+    function showFlagResolutionModal(taskId, isResolved = false) {
+        // For now, we'll just show the modal. In a real implementation, 
+        // you'd fetch the flag details from the server
+        document.getElementById('flag-resolution-modal').classList.remove('hidden');
+        
+        if (isResolved) {
+            document.getElementById('resolve-flag').textContent = 'Already Resolved';
+            document.getElementById('resolve-flag').disabled = true;
+        } else {
+            document.getElementById('resolve-flag').textContent = 'Mark as Resolved';
+            document.getElementById('resolve-flag').disabled = false;
+        }
+    }
+
+    function hideFlagResolutionModal() {
+        document.getElementById('flag-resolution-modal').classList.add('hidden');
+        currentFlagTaskId = null;
+    }
+
+    async function showFlagDiscussionModal(taskId) {
+        try {
+            const response = await fetch(`/projects/{{ project.id }}/tasks/${taskId}/discussion`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                // Show/hide current flag section based on whether task is flagged
+                const currentFlagSection = document.getElementById('current-flag-section');
+                if (data.is_flagged && data.comment) {
+                    currentFlagSection.style.display = 'block';
+                    document.getElementById('flag-comment-display').textContent = data.comment;
+                    document.getElementById('flagged-by-display').textContent = `Asked by ${data.flagged_by}`;
+                    
+                    // Format date
+                    const flaggedDate = new Date(data.flagged_at);
+                    document.getElementById('flagged-at-display').textContent = flaggedDate.toLocaleString();
+                } else {
+                    currentFlagSection.style.display = 'none';
+                }
+                
+                // Display discussion comments
+                document.getElementById('discussion-thread').innerHTML = '';
+                if (data.comments && data.comments.length > 0) {
+                    data.comments.forEach(comment => {
+                        addCommentToThread(comment);
+                    });
+                }
+                
+                // Show/hide resolve button based on permissions and flag status
+                const resolveBtn = document.getElementById('resolve-flag');
+                if (resolveBtn) {
+                    resolveBtn.style.display = data.is_flagged ? 'block' : 'none';
+                }
+                
+                document.getElementById('flag-discussion-modal').classList.remove('hidden');
+            } else {
+                showNotification(data.error || 'Failed to load discussion', 'error');
+            }
+        } catch (error) {
+            console.error('Error loading discussion:', error);
+            showNotification('Failed to load discussion', 'error');
+        }
+    }
+
+    function hideFlagDiscussionModal() {
+        document.getElementById('flag-discussion-modal').classList.add('hidden');
+        // Clear discussion thread
+        document.getElementById('discussion-thread').innerHTML = '';
+        // Clear comment text
+        document.getElementById('discussion-comment-text').value = '';
+        currentFlagTaskId = null;
+    }
+
+
+    function addCommentToThread(comment) {
+        const commentDiv = document.createElement('div');
+        commentDiv.className = 'p-3 bg-gray-800/30 rounded-lg border border-gray-700';
+        commentDiv.innerHTML = `
+            <div class="flex justify-between items-start mb-2">
+                <div class="text-sm font-medium text-white">${comment.user_name}</div>
+                <div class="text-xs text-gray-400">${new Date(comment.created_at).toLocaleString()}</div>
+            </div>
+            <div class="text-gray-300 text-sm whitespace-pre-wrap">${comment.comment}</div>
+        `;
+        document.getElementById('discussion-thread').appendChild(commentDiv);
+    }
+
+    function updateDiscussionButtonVisibility(taskId) {
+        // Check if discussion button should be visible
+        // This will be handled by the server-side template logic
+        // For now, we'll just ensure the button is visible if there are comments
+        const discussionBtn = document.querySelector(`[data-task-id="${taskId}"].task-discussion-btn`);
+        if (discussionBtn) {
+            // Button should remain visible since there are discussion comments
+            discussionBtn.style.display = 'block';
+        }
+    }
+
+    function updateFlagUI(taskId, flagStatus, flagColor) {
+        const flagButton = document.querySelector(`[data-task-id="${taskId}"].task-flag-btn`);
+        if (flagButton) {
+            flagButton.dataset.flagStatus = flagStatus;
+            flagButton.className = flagButton.className.replace(/text-(gray|red|green)-500/, flagColor);
+            
+            // Update tooltip
+            if (flagStatus === 'not_flagged') {
+                flagButton.title = 'Flag for clarification';
+            } else if (flagStatus === 'flagged') {
+                flagButton.title = 'Flagged for clarification';
+            } else if (flagStatus === 'resolved') {
+                flagButton.title = 'Flag resolved';
+            }
+        }
+    }
+
+    // Close modals when clicking outside
+    document.addEventListener('click', function(e) {
+        if (e.target.id === 'flag-comment-modal') {
+            hideFlagCommentModal();
+        }
+        if (e.target.id === 'flag-discussion-modal') {
+            hideFlagDiscussionModal();
+        }
+    });
+
+    // Handle Enter key in flag comment textarea
+    document.getElementById('flag-comment-text').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && e.ctrlKey) {
+            document.getElementById('submit-flag').click();
+        }
+    });
+
+    // Handle Enter key in discussion comment textarea
+    document.getElementById('discussion-comment-text').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && e.ctrlKey) {
+            submitDiscussionComment();
+        }
+    });
+
+    async function submitDiscussionComment() {
+        const commentText = document.getElementById('discussion-comment-text').value.trim();
+        
+        if (!commentText) {
+            showNotification('Please enter a comment', 'error');
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/projects/{{ project.id }}/tasks/${currentFlagTaskId}/discussion/comment`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ comment: commentText })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                // Add comment to thread
+                addCommentToThread(data.comment);
+                // Clear textarea
+                document.getElementById('discussion-comment-text').value = '';
+                showNotification(data.message, 'success');
+            } else {
+                showNotification(data.error || 'Failed to add comment', 'error');
+            }
+        } catch (error) {
+            console.error('Error adding comment:', error);
+            showNotification('Failed to add comment', 'error');
+        }
+    }
 </script>
 {% endblock %}

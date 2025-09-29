@@ -322,12 +322,21 @@
                                 <!-- Risk Indicator -->
                                 {% if task.risk_level and task.risk_level != 'low' %}
                                 <span
-                                    class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
+                                    class="risk-indicator inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
                                         {% if task.risk_level == 'critical' %}bg-red-500/20 text-red-400
                                         {% elif task.risk_level == 'high' %}bg-orange-500/20 text-orange-400
                                         {% elif task.risk_level == 'medium' %}bg-yellow-500/20 text-yellow-400{% endif %}">
                                     <i class="fas fa-exclamation-triangle mr-1"></i>
                                     {{ task.risk_level.title() }} Risk
+                                </span>
+                                {% endif %}
+                                
+                                <!-- Flag Indicator -->
+                                {% if task.is_flagged %}
+                                <span class="flag-indicator inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
+                                    {% if task.flag_resolved %}bg-green-500/20 text-green-400{% else %}bg-red-500/20 text-red-400{% endif %}">
+                                    <i class="fas fa-flag mr-1"></i>
+                                    {% if task.flag_resolved %}Flag Resolved{% else %}Flagged{% endif %}
                                 </span>
                                 {% endif %}
                             </div>
@@ -439,58 +448,80 @@
                             {% endif %}
                             {% endif %}
                             
-                            <!-- Task Flag/Discussion Button (All users) -->
-                            {% if task.is_flagged and task.flag_comment or task.discussion_comments or user_permissions.can_resolve_flags %}
-                            <button
-                                class="task-flag-btn text-gray-500 hover:text-orange-400 p-1.5 rounded-md hover:bg-orange-500/10 transition-all duration-200 {{ task.get_flag_color() if task.is_flagged else 'text-gray-500' }}"
-                                data-task-id="{{ task.id }}" 
-                                data-flag-status="{{ task.get_flag_status() }}"
-                                title="{% if task.is_flagged %}{% if task.flag_resolved %}Flag resolved{% else %}Flagged for clarification{% endif %}{% elif task.discussion_comments %}View discussion{% else %}Flag for clarification{% endif %}">
-                                <i class="fas fa-flag text-sm"></i>
-                            </button>
-                            {% endif %}
-                            
                             <!-- Task Details Dropdown Toggle -->
                             <button
                                 class="task-details-toggle text-gray-500 hover:text-blue-400 p-1.5 rounded-md hover:bg-blue-500/10 transition-all duration-200"
                                 data-task-id="{{ task.id }}" title="View Task Details">
                                 <i class="fas fa-chevron-down text-sm transition-transform duration-200"></i>
                             </button>
-                            {% if user_permissions.can_edit_tasks %}
-                            <!-- Dependency Management -->
-                            <button
-                                class="manage-dependencies text-gray-500 hover:text-orange-400 p-1.5 rounded-md hover:bg-orange-500/10 transition-all duration-200"
-                                data-task-id="{{ task.id }}" title="Manage Dependencies">
-                                <i class="fas fa-project-diagram text-sm"></i>
-                            </button>
-                            {% endif %}
-                            {% if user_permissions.can_assign_tasks %}
-                            <!-- Task Assignment -->
-                            <button
-                                class="assign-task text-gray-500 hover:text-green-400 p-1.5 rounded-md hover:bg-green-500/10 transition-all duration-200"
-                                data-task-id="{{ task.id }}" 
-                                data-assigned-to="{{ task.assigned_to or '' }}"
-                                title="Assign Task">
-                                <i class="fas fa-user-plus text-sm"></i>
-                            </button>
-                            {% endif %}
-                            {% if user_permissions.can_edit_tasks %}
-                            <form method="POST"
-                                action="{{ url_for('delete_task', project_id=project.id, task_id=task.id) }}"
-                                class="inline" onsubmit="return confirm('Are you sure you want to delete this task?')">
-                                <button type="submit"
-                                    class="text-gray-500 hover:text-red-400 p-1.5 rounded-md hover:bg-red-500/10 transition-all duration-200"
-                                    title="Delete Task">
-                                    <i class="fas fa-trash text-sm"></i>
-                                </button>
-                            </form>
-                            {% endif %}
                         </div>
                     </div>
                 </div>
                 
                 <!-- Task Details Dropdown Content -->
                 <div class="task-details-content hidden bg-gray-800/30 border-t border-gray-700 px-6 py-4">
+                    <!-- Task Actions Section -->
+                    <div class="mb-6 pb-4 border-b border-gray-700">
+                        <h4 class="text-sm font-semibold text-gray-300 mb-3 flex items-center">
+                            <i class="fas fa-cogs mr-2 text-blue-400"></i>
+                            Task Actions
+                        </h4>
+                        <div class="flex flex-wrap gap-3">
+                            <!-- Task Flag/Discussion Button (All users) -->
+                            {% if user_permissions.can_flag_tasks %}
+                            <button
+                                class="task-flag-btn px-4 py-2 text-sm font-medium text-white rounded-lg transition-all duration-200 
+                                {% if task.is_flagged %}
+                                    {% if task.flag_resolved %}bg-green-600 hover:bg-green-700{% else %}bg-red-600 hover:bg-red-700{% endif %}
+                                {% else %}bg-orange-600 hover:bg-orange-700{% endif %}"
+                                data-task-id="{{ task.id }}" 
+                                data-flag-status="{{ task.get_flag_status() }}"
+                                title="{% if task.is_flagged %}{% if task.flag_resolved %}Flag resolved{% else %}Flagged for clarification{% endif %}{% elif task.discussion_comments %}View discussion{% else %}Flag for clarification{% endif %}">
+                                <i class="fas fa-flag mr-2"></i>
+                                {% if task.is_flagged %}
+                                    {% if task.flag_resolved %}Flag Resolved{% else %}Flagged{% endif %}
+                                {% elif task.discussion_comments %}View Discussion{% else %}Flag Task{% endif %}
+                            </button>
+                            {% endif %}
+                            
+                            {% if user_permissions.can_edit_tasks %}
+                            <!-- Dependency Management -->
+                            <button
+                                class="manage-dependencies px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-all duration-200"
+                                data-task-id="{{ task.id }}" title="Manage Dependencies">
+                                <i class="fas fa-project-diagram mr-2"></i>
+                                Manage Dependencies
+                            </button>
+                            {% endif %}
+                            
+                            {% if user_permissions.can_assign_tasks %}
+                            <!-- Task Assignment -->
+                            <button
+                                class="assign-task px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-all duration-200"
+                                data-task-id="{{ task.id }}" 
+                                data-assigned-to="{{ task.assigned_to or '' }}"
+                                title="Assign Task">
+                                <i class="fas fa-user-plus mr-2"></i>
+                                Assign Task
+                            </button>
+                            {% endif %}
+                            
+                            {% if user_permissions.can_edit_tasks %}
+                            <!-- Delete Task -->
+                            <form method="POST"
+                                action="{{ url_for('delete_task', project_id=project.id, task_id=task.id) }}"
+                                class="inline" onsubmit="return confirm('Are you sure you want to delete this task?')">
+                                <button type="submit"
+                                    class="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-all duration-200"
+                                    title="Delete Task">
+                                    <i class="fas fa-trash mr-2"></i>
+                                    Delete Task
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <!-- Left Column -->
                         <div class="space-y-4">
@@ -3135,15 +3166,61 @@
         const flagButton = document.querySelector(`[data-task-id="${taskId}"].task-flag-btn`);
         if (flagButton) {
             flagButton.dataset.flagStatus = flagStatus;
-            flagButton.className = flagButton.className.replace(/text-(gray|red|green)-500/, flagColor);
             
-            // Update tooltip
+            // Update button styling based on flag status
             if (flagStatus === 'not_flagged') {
+                flagButton.className = flagButton.className.replace(/bg-(orange|red|green)-600/, 'bg-orange-600');
+                flagButton.className = flagButton.className.replace(/hover:bg-(orange|red|green)-700/, 'hover:bg-orange-700');
                 flagButton.title = 'Flag for clarification';
+                flagButton.innerHTML = '<i class="fas fa-flag mr-2"></i>Flag Task';
             } else if (flagStatus === 'flagged') {
+                flagButton.className = flagButton.className.replace(/bg-(orange|red|green)-600/, 'bg-red-600');
+                flagButton.className = flagButton.className.replace(/hover:bg-(orange|red|green)-700/, 'hover:bg-red-700');
                 flagButton.title = 'Flagged for clarification';
+                flagButton.innerHTML = '<i class="fas fa-flag mr-2"></i>Flagged';
             } else if (flagStatus === 'resolved') {
+                flagButton.className = flagButton.className.replace(/bg-(orange|red|green)-600/, 'bg-green-600');
+                flagButton.className = flagButton.className.replace(/hover:bg-(orange|red|green)-700/, 'hover:bg-green-700');
                 flagButton.title = 'Flag resolved';
+                flagButton.innerHTML = '<i class="fas fa-flag mr-2"></i>Flag Resolved';
+            }
+        }
+        
+        // Update main task section flag indicator
+        const taskItem = document.querySelector(`[data-task-id="${taskId}"].task-item`);
+        if (taskItem) {
+            let flagIndicator = taskItem.querySelector('.flag-indicator');
+            
+            if (flagStatus === 'not_flagged') {
+                // Remove flag indicator if it exists
+                if (flagIndicator) {
+                    flagIndicator.remove();
+                }
+            } else {
+                // Create or update flag indicator
+                if (!flagIndicator) {
+                    flagIndicator = document.createElement('span');
+                    flagIndicator.className = 'flag-indicator inline-flex items-center px-2 py-1 rounded-full text-xs font-medium';
+                    flagIndicator.innerHTML = '<i class="fas fa-flag mr-1"></i>';
+                    
+                    // Insert after risk indicator or after task title
+                    const riskIndicator = taskItem.querySelector('.risk-indicator');
+                    const taskTitle = taskItem.querySelector('h3');
+                    if (riskIndicator) {
+                        riskIndicator.parentNode.insertBefore(flagIndicator, riskIndicator.nextSibling);
+                    } else if (taskTitle) {
+                        taskTitle.parentNode.insertBefore(flagIndicator, taskTitle.nextSibling);
+                    }
+                }
+                
+                // Update flag indicator styling and text
+                if (flagStatus === 'flagged') {
+                    flagIndicator.className = 'flag-indicator inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-400';
+                    flagIndicator.innerHTML = '<i class="fas fa-flag mr-1"></i>Flagged';
+                } else if (flagStatus === 'resolved') {
+                    flagIndicator.className = 'flag-indicator inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400';
+                    flagIndicator.innerHTML = '<i class="fas fa-flag mr-1"></i>Flag Resolved';
+                }
             }
         }
     }

@@ -2155,10 +2155,52 @@ def delete_task(project_id, task_id):
     
     # WebSocket broadcast removed - using simple HTTP requests instead
     
+    # Delete related records first to avoid foreign key constraint issues
+    # Delete discussion comments
+    DiscussionComment.query.filter_by(task_id=task.id).delete()
+    
+    # Delete task dependencies (both directions)
+    TaskDependency.query.filter_by(task_id=task.id).delete()
+    TaskDependency.query.filter_by(depends_on_id=task.id).delete()
+    
+    # Delete task labels
+    TaskLabel.query.filter_by(task_id=task.id).delete()
+    
+    # Delete child tasks (recursively)
+    child_tasks = Task.query.filter_by(parent_id=task.id).all()
+    for child_task in child_tasks:
+        # Recursively delete child tasks
+        delete_task_recursive(child_task.id)
+    
+    # Now delete the task itself
     db.session.delete(task)
     db.session.commit()
     flash(f'Task "{task_title}" has been deleted')
     return redirect(url_for('view_project', id=project_id))
+
+def delete_task_recursive(task_id):
+    """Recursively delete a task and all its related records"""
+    # Delete discussion comments
+    DiscussionComment.query.filter_by(task_id=task_id).delete()
+    
+    # Delete task dependencies (both directions)
+    TaskDependency.query.filter_by(task_id=task_id).delete()
+    TaskDependency.query.filter_by(depends_on_id=task_id).delete()
+    
+    # Delete task labels
+    TaskLabel.query.filter_by(task_id=task_id).delete()
+    
+    # Get child tasks before deleting the parent
+    child_tasks = Task.query.filter_by(parent_id=task_id).all()
+    
+    # Delete the task itself
+    task = Task.query.get(task_id)
+    if task:
+        db.session.delete(task)
+    
+    # Recursively delete child tasks
+    for child_task in child_tasks:
+        delete_task_recursive(child_task.id)
 
 # Task Flagging Routes
 @app.route('/projects/<int:project_id>/tasks/<int:task_id>/flag', methods=['POST'])

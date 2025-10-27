@@ -778,20 +778,27 @@ class Task(db.Model):
         self.updated_at = datetime.utcnow()
         return True, "Task flagged successfully"
     
-    def resolve_flag(self, user_id):
-        """Resolve a flagged task - clears flag but keeps discussion comments"""
+    def resolve_flag(self, user_id, resolution_comment=None):
+        """Resolve a flagged task - preserves flag history in discussions"""
         if not self.is_flagged:
             return False, "Task is not flagged"
         
-        # Clear the flag but keep discussion comments
+        # Record resolution time and resolver before clearing
+        self.flag_resolved = True
+        self.flag_resolved_at = datetime.utcnow()
+        self.flag_resolved_by = user_id
+        
+        # Clear the current flag but keep resolution tracking
         self.is_flagged = False
         self.flag_comment = None
+        old_flagged_by = self.flagged_by
         self.flagged_by = None
+        old_flagged_at = self.flagged_at
         self.flagged_at = None
-        self.flag_resolved = False
-        self.flag_resolved_at = None
-        self.flag_resolved_by = None
         self.updated_at = datetime.utcnow()
+        
+        # The resolution tracking fields are preserved above
+        # They will be saved later along with any discussion comments added by the caller
         return True, "Flag resolved successfully - ready for new clarification requests"
     
     def unflag_task(self, user_id):
@@ -815,21 +822,21 @@ class Task(db.Model):
     
     def get_flag_status(self):
         """Get the current flag status for display"""
-        if not self.is_flagged:
-            return "not_flagged"
-        elif self.flag_resolved:
+        if self.flag_resolved:
             return "resolved"
-        else:
+        elif self.is_flagged:
             return "flagged"
+        else:
+            return "not_flagged"
     
     def get_flag_color(self):
         """Get the appropriate flag color based on status"""
-        if not self.is_flagged:
-            return "text-gray-500"
-        elif self.flag_resolved:
+        if self.flag_resolved:
             return "text-green-500"
-        else:
+        elif self.is_flagged:
             return "text-red-500"
+        else:
+            return "text-gray-500"
     
     def get_reset_button_class(self):
         """Get the reset button CSS class"""
@@ -2252,7 +2259,7 @@ def flag_task(project_id, task_id):
 @app.route('/projects/<int:project_id>/tasks/<int:task_id>/resolve-flag', methods=['POST'])
 @login_required
 def resolve_task_flag(project_id, task_id):
-    """Resolve a flagged task"""
+    """Resolve a flagged task and preserve history in discussion thread"""
     from services.permission_manager import PermissionManager
     
     project = Project.query.get_or_404(project_id)
@@ -2267,9 +2274,27 @@ def resolve_task_flag(project_id, task_id):
     if user_role not in ['owner', 'admin']:
         return jsonify({'error': 'Only project owners and admins can resolve flags'}), 403
     
+    # Save the original flag comment as a DiscussionComment before resolving
+    if task.flag_comment and task.flagged_by:
+        original_comment = DiscussionComment(
+            task_id=task_id,
+            user_id=task.flagged_by,
+            comment=f"Original Clarification Request:\n{task.flag_comment}"
+        )
+        db.session.add(original_comment)
+    
     success, message = task.resolve_flag(current_user.id)
     
     if success:
+        # Add a resolution comment to the discussion thread
+        resolver_name = current_user.name
+        resolution_comment = DiscussionComment(
+            task_id=task_id,
+            user_id=current_user.id,
+            comment=f"Resolved by {resolver_name}"
+        )
+        db.session.add(resolution_comment)
+        
         # Log the activity
         SharingActivityLog.log_activity(
             project_id=project_id,
@@ -2337,7 +2362,7 @@ def unflag_task(project_id, task_id):
 @app.route('/projects/<int:project_id>/tasks/<int:task_id>/discussion', methods=['GET'])
 @login_required
 def get_task_discussion(project_id, task_id):
-    """Get task discussion details for non-admin users"""
+    """Get task discussion details including historical flag information"""
     from services.permission_manager import PermissionManager
     
     project = Project.query.get_or_404(project_id)
@@ -2352,9 +2377,6 @@ def get_task_discussion(project_id, task_id):
     if not task.is_flagged and not has_comments:
         return jsonify({'error': 'No discussion available for this task'}), 404
     
-    # Get flagger details
-    flagger = User.query.get(task.flagged_by) if task.flagged_by else None
-    
     # Get discussion comments
     comments = DiscussionComment.query.filter_by(task_id=task_id).order_by(DiscussionComment.created_at.asc()).all()
     comments_data = []
@@ -2366,16 +2388,26 @@ def get_task_discussion(project_id, task_id):
             'created_at': comment.created_at.isoformat()
         })
     
-    return jsonify({
-        'comment': task.flag_comment,
-        'flagged_by': flagger.name if flagger else 'Unknown',
-        'flagged_at': task.flagged_at.isoformat() if task.flagged_at else None,
-        'is_resolved': task.flag_resolved,
-        'resolved_by': task.flag_resolver.name if task.flag_resolver else None,
-        'resolved_at': task.flag_resolved_at.isoformat() if task.flag_resolved_at else None,
+    # Return information about current or historical flags
+    response_data = {
         'is_flagged': task.is_flagged,
+        'is_resolved': task.flag_resolved,
         'comments': comments_data
-    })
+    }
+    
+    # If currently flagged, return current flag info
+    if task.is_flagged and task.flag_comment:
+        flagger = User.query.get(task.flagged_by) if task.flagged_by else None
+        response_data['comment'] = task.flag_comment
+        response_data['flagged_by'] = flagger.name if flagger else 'Unknown'
+        response_data['flagged_at'] = task.flagged_at.isoformat() if task.flagged_at else None
+    # If resolved, return resolution info
+    elif task.flag_resolved:
+        response_data['flag_status'] = 'resolved'
+        response_data['resolved_by'] = task.flag_resolver.name if task.flag_resolver else None
+        response_data['resolved_at'] = task.flag_resolved_at.isoformat() if task.flag_resolved_at else None
+    
+    return jsonify(response_data)
 
 @app.route('/projects/<int:project_id>/tasks/<int:task_id>/discussion/comment', methods=['POST'])
 @login_required

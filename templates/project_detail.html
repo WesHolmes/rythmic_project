@@ -3094,12 +3094,24 @@
                 const currentFlagSection = document.getElementById('current-flag-section');
                 if (data.is_flagged && data.comment) {
                     currentFlagSection.style.display = 'block';
+                    // Update title for active flag
+                    currentFlagSection.querySelector('h4').textContent = 'Current Clarification Request:';
                     document.getElementById('flag-comment-display').textContent = data.comment;
                     document.getElementById('flagged-by-display').textContent = `Asked by ${data.flagged_by}`;
                     
                     // Format date
                     const flaggedDate = new Date(data.flagged_at);
                     document.getElementById('flagged-at-display').textContent = flaggedDate.toLocaleString();
+                } else if (data.is_resolved && data.resolved_by && data.resolved_at) {
+                    // Show resolved status in the discussion section
+                    currentFlagSection.style.display = 'block';
+                    currentFlagSection.querySelector('h4').textContent = 'Clarification History';
+                    document.getElementById('flag-comment-display').textContent = 'Previously resolved';
+                    document.getElementById('flagged-by-display').textContent = `Resolved by ${data.resolved_by}`;
+                    
+                    // Format date
+                    const resolvedDate = new Date(data.resolved_at);
+                    document.getElementById('flagged-at-display').textContent = resolvedDate.toLocaleString();
                 } else {
                     currentFlagSection.style.display = 'none';
                 }

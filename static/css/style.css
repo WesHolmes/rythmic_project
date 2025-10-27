@@ -866,6 +866,12 @@ input[type="text"]#new-label-name, input[type="text"]#edit-label-name {
 }
 
 /* Scrollbar for chat messages */
+#ai-chat-messages {
+    scroll-behavior: smooth;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
 #ai-chat-messages::-webkit-scrollbar {
     width: 6px;
 }

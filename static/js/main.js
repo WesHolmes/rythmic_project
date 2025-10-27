@@ -40,7 +40,7 @@ document.querySelectorAll('form').forEach(form => {
         const submitBtn = this.querySelector('button[type="submit"]');
         if (submitBtn) {
             const originalText = submitBtn.innerHTML;
-            submitBtn.innerHTML = '<div class="spinner mr-2"></div>Loading...';
+            submitBtn.innerHTML = '<div class="spinner mr-2"></div>';
             submitBtn.disabled = true;
             
             // Re-enable after 10 seconds as fallback

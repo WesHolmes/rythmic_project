@@ -2236,6 +2236,10 @@ def flag_task(project_id, task_id):
         )
         
         db.session.commit()
+        
+        # Refresh the task object to ensure we have the latest state from the database
+        db.session.refresh(task)
+        
         return jsonify({
             'success': True,
             'message': message,
@@ -2277,6 +2281,10 @@ def resolve_task_flag(project_id, task_id):
         )
         
         db.session.commit()
+        
+        # Refresh the task object to ensure we have the latest state from the database
+        db.session.refresh(task)
+        
         return jsonify({
             'success': True,
             'message': message,
@@ -2313,6 +2321,10 @@ def unflag_task(project_id, task_id):
         )
         
         db.session.commit()
+        
+        # Refresh the task object to ensure we have the latest state from the database
+        db.session.refresh(task)
+        
         return jsonify({
             'success': True,
             'message': message,
@@ -4517,6 +4529,99 @@ def cleanup_user_session(project_id):
         print(f"Error cleaning up user session: {e}")
         return jsonify({'error': 'Failed to clean up session'}), 500
 
+@app.route('/api/ai-insights', methods=['GET'])
+@login_required
+def ai_insights():
+    """Get AI insights about stale and at-risk tasks for the current user"""
+    try:
+        from services.permission_manager import PermissionManager
+        
+        user = current_user
+        now = datetime.utcnow()
+        thirty_days_ago = now - timedelta(days=30)
+        
+        # Get all projects user owns
+        owned_projects = Project.query.filter_by(owner_id=user.id).all()
+        project_ids = [p.id for p in owned_projects]
+        
+        if not project_ids:
+            return jsonify({
+                'stale_tasks': [],
+                'at_risk_tasks': [],
+                'message': 'No projects found'
+            })
+        
+        # Find stale tasks (not updated in 30 days and not completed)
+        stale_tasks = Task.query.filter(
+            Task.project_id.in_(project_ids),
+            Task.status != 'completed',
+            Task.workflow_status != 'completed',
+            Task.updated_at < thirty_days_ago
+        ).all()
+        
+        # Find at-risk tasks (due soon or overdue)
+        at_risk_tasks = Task.query.filter(
+            Task.project_id.in_(project_ids),
+            Task.status != 'completed',
+            Task.workflow_status != 'completed',
+            Task.end_date.isnot(None)
+        ).all()
+        
+        # Filter tasks that are due within 7 days or overdue
+        at_risk_list = []
+        for task in at_risk_tasks:
+            if task.end_date:
+                days_until_due = (task.end_date - now.date()).days
+                if days_until_due <= 7:  # Due within 7 days or already overdue
+                    at_risk_list.append(task)
+        
+        # Format stale tasks
+        stale_tasks_data = []
+        for task in stale_tasks:
+            days_stale = (now - task.updated_at).days if task.updated_at else 0
+            project = Project.query.get(task.project_id)
+            stale_tasks_data.append({
+                'id': task.id,
+                'title': task.title,
+                'project_name': project.name if project else 'Unknown',
+                'project_id': task.project_id,
+                'status': task.status,
+                'workflow_status': task.workflow_status,
+                'days_stale': days_stale,
+                'updated_at': task.updated_at.isoformat() if task.updated_at else None
+            })
+        
+        # Format at-risk tasks
+        at_risk_tasks_data = []
+        for task in at_risk_list:
+            days_until_due = (task.end_date - now.date()).days if task.end_date else 0
+            project = Project.query.get(task.project_id)
+            is_overdue = days_until_due < 0
+            at_risk_tasks_data.append({
+                'id': task.id,
+                'title': task.title,
+                'project_name': project.name if project else 'Unknown',
+                'project_id': task.project_id,
+                'status': task.status,
+                'workflow_status': task.workflow_status,
+                'end_date': task.end_date.isoformat() if task.end_date else None,
+                'days_until_due': days_until_due,
+                'is_overdue': is_overdue
+            })
+        
+        return jsonify({
+            'stale_tasks': stale_tasks_data,
+            'at_risk_tasks': at_risk_tasks_data
+        })
+        
+    except Exception as e:
+        print(f"AI insights error: {e}")
+        return jsonify({
+            'stale_tasks': [],
+            'at_risk_tasks': [],
+            'error': str(e)
+        }), 500
+
 @app.route('/api/ai-chat', methods=['POST'])
 @login_required
 def ai_chat():
@@ -4623,6 +4728,10 @@ def ai_chat():
 </ul>
 <p class="text-sm mt-2">Navigate through the app using the menus - most AI features are available when creating or editing projects.</p>
                 '''
+            },
+            'reminders': {
+                'keywords': ['stale', 'late', 'overdue', 'old', 'forgotten', 'reminder', 'at risk', 'due soon'],
+                'response': 'INSIGHTS_FETCH',  # Special flag to fetch actual data
             }
         }
         
@@ -4638,7 +4747,55 @@ def ai_chat():
         
         # Default response if no match found
         if best_match and max_matches > 0:
-            response = best_match['response']
+            # Special handling for insights fetch
+            if best_match['response'] == 'INSIGHTS_FETCH':
+                # Fetch actual insights
+                thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+                stale_tasks = Task.query.filter(
+                    Task.project_id.in_(user_project_ids),
+                    Task.status != 'completed',
+                    Task.workflow_status != 'completed',
+                    Task.updated_at < thirty_days_ago
+                ).all()
+                
+                at_risk_tasks_all = Task.query.filter(
+                    Task.project_id.in_(user_project_ids),
+                    Task.status != 'completed',
+                    Task.workflow_status != 'completed',
+                    Task.end_date.isnot(None)
+                ).all()
+                
+                at_risk_list = []
+                now = datetime.utcnow()
+                for task in at_risk_tasks_all:
+                    if task.end_date:
+                        days_until_due = (task.end_date - now.date()).days
+                        if days_until_due <= 7:
+                            at_risk_list.append(task)
+                
+                if stale_tasks or at_risk_list:
+                    response = '<h4 class="text-orange-400 mb-2">⚠️ Task Reminders:</h4>'
+                    
+                    if stale_tasks:
+                        response += f'<p class="text-sm mb-2"><strong>Stale Tasks ({len(stale_tasks)}):</strong> Not updated in 30+ days:</p><ul class="list-disc list-inside space-y-1 text-sm">'
+                        for task in stale_tasks[:5]:  # Show max 5
+                            days_stale = (now - task.updated_at).days if task.updated_at else 0
+                            response += f'<li><strong>{task.title}</strong> - {days_stale} days stale</li>'
+                        response += '</ul>'
+                    
+                    if at_risk_list:
+                        response += f'<p class="text-sm mt-2 mb-2"><strong>At-Risk Tasks ({len(at_risk_list)}):</strong> Due within 7 days or overdue:</p><ul class="list-disc list-inside space-y-1 text-sm">'
+                        for task in at_risk_list[:5]:  # Show max 5
+                            days_until_due = (task.end_date - now.date()).days if task.end_date else 0
+                            status_text = f'{abs(days_until_due)} days overdue' if days_until_due < 0 else f'{days_until_due} days remaining'
+                            response += f'<li><strong>{task.title}</strong> - {status_text}</li>'
+                        response += '</ul>'
+                else:
+                    response = '<h4 class="text-green-400 mb-2">✅ All Good!</h4><p class="text-sm">You have no stale or at-risk tasks. Great job keeping everything up to date!</p>'
+                    
+                return jsonify({'response': response})
+            else:
+                response = best_match['response']
         else:
             # Generic helpful response
             response = f'''

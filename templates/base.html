@@ -68,6 +68,11 @@
 
     <!-- Include Activity Log Modal -->
     {% include 'activity_log_modal.html' %}
+    
+    <!-- Include AI Panel -->
+    {% if current_user.is_authenticated %}
+    {% include 'ai_panel.html' %}
+    {% endif %}
 
     <!-- Socket.IO removed - using simple HTTP requests instead -->
     
@@ -78,6 +83,9 @@
     
     <!-- Activity Log Management -->
     <script src="{{ url_for('static', filename='js/activity-log.js') }}"></script>
+    
+    <!-- AI Panel -->
+    <script src="{{ url_for('static', filename='js/ai-panel.js') }}"></script>
     
     <!-- Environment detection -->
     <script>

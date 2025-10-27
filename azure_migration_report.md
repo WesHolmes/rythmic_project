@@ -1,20 +1,20 @@
 # Azure Production Migration Report
-Generated: 2025-09-29T20:36:37.942873
+Generated: 2025-10-27T01:56:00.714967
 
 ## Migration Steps
 
-- [2025-09-29T20:36:37.940575] Migration started
-- [2025-09-29T20:36:37.940930] Database connection validated
-- [2025-09-29T20:36:37.941479] Created tables: project_collaborators, sharing_tokens, sharing_activity_log, active_sessions
-- [2025-09-29T20:36:37.941736] Task assignment columns already exist: ['assigned_to', 'assigned_by', 'assigned_at']
-- [2025-09-29T20:36:37.941881] Task workflow columns already exist: ['workflow_status', 'started_at', 'committed_at', 'completed_at']
-- [2025-09-29T20:36:37.942017] Task flagging columns already exist: ['is_flagged', 'flag_comment', 'flagged_by', 'flagged_at', 'flag_resolved', 'flag_resolved_at', 'flag_resolved_by']
-- [2025-09-29T20:36:37.942342] Created 0 indexes
-- [2025-09-29T20:36:37.942360] Backup procedures skipped
-- [2025-09-29T20:36:37.942378] Database optimizations applied
-- [2025-09-29T20:36:37.942738] Migration validation completed
-- [2025-09-29T20:36:37.942862] Created 1 monitoring views
-- [2025-09-29T20:36:37.942871] Migration completed successfully
+- [2025-10-27T01:56:00.712905] Migration started
+- [2025-10-27T01:56:00.713118] Database connection validated
+- [2025-10-27T01:56:00.713552] Created tables: project_collaborators, sharing_tokens, sharing_activity_log, active_sessions
+- [2025-10-27T01:56:00.713792] Task assignment columns already exist: ['assigned_to', 'assigned_by', 'assigned_at']
+- [2025-10-27T01:56:00.713939] Task workflow columns already exist: ['workflow_status', 'started_at', 'committed_at', 'completed_at']
+- [2025-10-27T01:56:00.714075] Task flagging columns already exist: ['is_flagged', 'flag_comment', 'flagged_by', 'flagged_at', 'flag_resolved', 'flag_resolved_at', 'flag_resolved_by']
+- [2025-10-27T01:56:00.714445] Created 0 indexes
+- [2025-10-27T01:56:00.714462] Backup procedures skipped
+- [2025-10-27T01:56:00.714480] Database optimizations applied
+- [2025-10-27T01:56:00.714826] Migration validation completed
+- [2025-10-27T01:56:00.714955] Created 1 monitoring views
+- [2025-10-27T01:56:00.714965] Migration completed successfully
 
 ## Database Configuration
 - Connection pooling: Enabled

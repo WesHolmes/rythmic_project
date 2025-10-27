@@ -4657,197 +4657,34 @@ def ai_insights():
 @app.route('/api/ai-chat', methods=['POST'])
 @login_required
 def ai_chat():
-    """Handle AI chat requests with intelligent fallback responses"""
+    """Handle AI chat requests with conversational AI"""
     try:
+        from services.conversational_ai import ConversationalAI
+        
         data = request.get_json()
-        message = data.get('message', '').strip().lower()
+        message = data.get('message', '').strip()
         
         if not message:
             return jsonify({'error': 'Message is required'}), 400
         
         # Get user's current context
         user = current_user
-        user_projects = Project.query.filter_by(owner_id=user.id).all()
-        user_project_ids = [p.id for p in user_projects]
         
-        # Knowledge base for the application
-        knowledge_base = {
-            'features': {
-                'keywords': ['feature', 'functionality', 'what can', 'capabilities', 'offer', 'do'],
-                'response': '''
-<h4 class="text-blue-400 mb-2">Rhythmic offers powerful project management features:</h4>
-<ul class="list-disc list-inside space-y-1 text-sm">
-    <li><strong>Projects & Tasks:</strong> Create and organize projects with hierarchical task structures</li>
-    <li><strong>Task Workflow:</strong> Track tasks through backlog → in progress → committed → completed states</li>
-    <li><strong>Task Assignment:</strong> Assign tasks to team members with notifications</li>
-    <li><strong>Dependencies:</strong> Link tasks to show prerequisites and relationships</li>
-    <li><strong>Labels:</strong> Categorize tasks with custom labels and colors</li>
-    <li><strong>Flagging:</strong> Flag tasks for clarification or attention</li>
-    <li><strong>Sharing & Collaboration:</strong> Share projects with role-based access (owner, admin, editor, viewer)</li>
-    <li><strong>Discussion:</strong> Add comments to tasks for team communication</li>
-    <li><strong>Activity Log:</strong> Track all changes and events in real-time</li>
-    <li><strong>Export/Import:</strong> Export projects to JSON or import from templates</li>
-</ul>
-                '''
-            },
-            'projects': {
-                'keywords': ['project', 'create project', 'new project', 'manage projects'],
-                'response': f'''
-<h4 class="text-blue-400 mb-2">Your Projects:</h4>
-<p class="text-sm mb-2">You currently have <strong>{len(user_projects)}</strong> project(s).</p>
-<p class="text-sm mb-2">To create a new project:</p>
-<ol class="list-decimal list-inside space-y-1 text-sm ml-2">
-    <li>Go to the Projects page</li>
-    <li>Click "New Project"</li>
-    <li>Fill in the project name, description, and AI-generated brief (optional)</li>
-    <li>Use the AI assistant to generate tasks automatically</li>
-</ol>
-                '''
-            },
-            'tasks': {
-                'keywords': ['task', 'create task', 'task workflow', 'status', 'how to add'],
-                'response': '''
-<h4 class="text-blue-400 mb-2">Tasks in Rhythmic:</h4>
-<p class="text-sm mb-2">Tasks have several important features:</p>
-<ul class="list-disc list-inside space-y-1 text-sm">
-    <li><strong>Workflow States:</strong> Backlog → In Progress → Committed → Completed</li>
-    <li><strong>Task Assignment:</strong> Assign tasks to team members</li>
-    <li><strong>Dependencies:</strong> Link tasks to show prerequisites</li>
-    <li><strong>Hierarchy:</strong> Create parent-child task relationships</li>
-    <li><strong>Flagging:</strong> Flag unclear tasks for team discussion</li>
-    <li><strong>Labels:</strong> Organize with custom labels</li>
-</ul>
-<p class="text-sm mt-2">To add a task, open a project and click "New Task".</p>
-                '''
-            },
-            'workflow': {
-                'keywords': ['workflow', 'backlog', 'committed', 'completed', 'in progress'],
-                'response': '''
-<h4 class="text-blue-400 mb-2">Task Workflow States:</h4>
-<ul class="list-disc list-inside space-y-1 text-sm">
-    <li><strong>Backlog:</strong> Tasks not yet started</li>
-    <li><strong>In Progress:</strong> Tasks currently being worked on</li>
-    <li><strong>Committed:</strong> Tasks that have been committed/verified</li>
-    <li><strong>Completed:</strong> Tasks that are fully finished</li>
-</ul>
-<p class="text-sm mt-2">Use the workflow buttons on each task to move between states and track progress.</p>
-                '''
-            },
-            'collaboration': {
-                'keywords': ['collaborate', 'share', 'invite', 'collaborator', 'team'],
-                'response': '''
-<h4 class="text-blue-400 mb-2">Sharing & Collaboration:</h4>
-<p class="text-sm mb-2">Share projects with team members using different roles:</p>
-<ul class="list-disc list-inside space-y-1 text-sm">
-    <li><strong>Owner:</strong> Full control over the project (you)</li>
-    <li><strong>Admin:</strong> Can edit project, manage collaborators, assign tasks</li>
-    <li><strong>Editor:</strong> Can create and edit tasks</li>
-    <li><strong>Viewer:</strong> Read-only access to the project</li>
-</ul>
-<p class="text-sm mt-2">Click the share icon on any project to invite collaborators via email or generate a shareable link.</p>
-                '''
-            },
-            'ai': {
-                'keywords': ['ai', 'assistant', 'generate', 'automatic', 'brief'],
-                'response': '''
-<h4 class="text-blue-400 mb-2">AI Features in Rhythmic:</h4>
-<p class="text-sm mb-2">The AI assistant can help you:</p>
-<ul class="list-disc list-inside space-y-1 text-sm">
-    <li>Generate project briefs from your input</li>
-    <li>Create starter task plans automatically</li>
-    <li>Summarize project progress</li>
-    <li>Answer questions about your projects</li>
-</ul>
-<p class="text-sm mt-2">Navigate through the app using the menus - most AI features are available when creating or editing projects.</p>
-                '''
-            },
-            'reminders': {
-                'keywords': ['stale', 'late', 'overdue', 'old', 'forgotten', 'reminder', 'at risk', 'due soon'],
-                'response': 'INSIGHTS_FETCH',  # Special flag to fetch actual data
-            }
-        }
+        # Initialize conversational AI
+        ai_assistant = ConversationalAI()
         
-        # Simple keyword-based response selection
-        best_match = None
-        max_matches = 0
+        # Build comprehensive user context
+        context = ai_assistant.build_user_context(user)
         
-        for feature_name, feature_data in knowledge_base.items():
-            matches = sum(1 for keyword in feature_data['keywords'] if keyword in message)
-            if matches > max_matches:
-                max_matches = matches
-                best_match = feature_data
-        
-        # Default response if no match found
-        if best_match and max_matches > 0:
-            # Special handling for insights fetch
-            if best_match['response'] == 'INSIGHTS_FETCH':
-                # Fetch actual insights
-                thirty_days_ago = datetime.utcnow() - timedelta(days=30)
-                stale_tasks = Task.query.filter(
-                    Task.project_id.in_(user_project_ids),
-                    Task.status != 'completed',
-                    Task.workflow_status != 'completed',
-                    Task.updated_at < thirty_days_ago
-                ).all()
-                
-                at_risk_tasks_all = Task.query.filter(
-                    Task.project_id.in_(user_project_ids),
-                    Task.status != 'completed',
-                    Task.workflow_status != 'completed',
-                    Task.end_date.isnot(None)
-                ).all()
-                
-                at_risk_list = []
-                now = datetime.utcnow()
-                for task in at_risk_tasks_all:
-                    if task.end_date:
-                        days_until_due = (task.end_date - now.date()).days
-                        if days_until_due <= 7:
-                            at_risk_list.append(task)
-                
-                if stale_tasks or at_risk_list:
-                    response = '<h4 class="text-orange-400 mb-2">⚠️ Task Reminders:</h4>'
-                    
-                    if stale_tasks:
-                        response += f'<p class="text-sm mb-2"><strong>Stale Tasks ({len(stale_tasks)}):</strong> Not updated in 30+ days:</p><ul class="list-disc list-inside space-y-1 text-sm">'
-                        for task in stale_tasks[:5]:  # Show max 5
-                            days_stale = (now - task.updated_at).days if task.updated_at else 0
-                            response += f'<li><strong>{task.title}</strong> - {days_stale} days stale</li>'
-                        response += '</ul>'
-                    
-                    if at_risk_list:
-                        response += f'<p class="text-sm mt-2 mb-2"><strong>At-Risk Tasks ({len(at_risk_list)}):</strong> Due within 7 days or overdue:</p><ul class="list-disc list-inside space-y-1 text-sm">'
-                        for task in at_risk_list[:5]:  # Show max 5
-                            days_until_due = (task.end_date - now.date()).days if task.end_date else 0
-                            status_text = f'{abs(days_until_due)} days overdue' if days_until_due < 0 else f'{days_until_due} days remaining'
-                            response += f'<li><strong>{task.title}</strong> - {status_text}</li>'
-                        response += '</ul>'
-                else:
-                    response = '<h4 class="text-green-400 mb-2">✅ All Good!</h4><p class="text-sm">You have no stale or at-risk tasks. Great job keeping everything up to date!</p>'
-                    
-                return jsonify({'response': response})
-            else:
-                response = best_match['response']
-        else:
-            # Generic helpful response
-            response = f'''
-<h4 class="text-blue-400 mb-2">I'd be happy to help!</h4>
-<p class="text-sm mb-2">Rhythmic is a comprehensive project management application. Here are some areas I can help with:</p>
-<ul class="list-disc list-inside space-y-1 text-sm">
-    <li>Creating and managing projects</li>
-    <li>Adding and organizing tasks</li>
-    <li>Task workflow and status tracking</li>
-    <li>Collaborating with team members</li>
-    <li>Using labels and categories</li>
-    <li>Task dependencies and relationships</li>
-</ul>
-<p class="text-sm mt-2">Try asking about specific features, or navigate to your projects to see everything in action!</p>
-            '''
+        # Generate intelligent response
+        response = ai_assistant.generate_response(message, context)
         
         return jsonify({'response': response})
         
     except Exception as e:
         print(f"AI chat error: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             'response': '''
 <h4 class="text-red-400 mb-2">An error occurred</h4>

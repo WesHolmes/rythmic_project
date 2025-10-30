@@ -1647,6 +1647,10 @@
             workflowFilterButtons.forEach(btn => btn.classList.remove('active'));
             // Add active class to clicked button
             this.classList.add('active');
+            
+            // Auto-collapse all parent tasks when applying workflow filters
+            collapseAllParentTasks();
+            
             filterTasks();
         });
     });
@@ -1789,8 +1793,24 @@
             let showTask = true;
 
             // When "All Tasks" is selected (no workflowValue), only show parent tasks (no parent_id)
+            // Child tasks will be shown only if their parent is expanded
             if (!workflowValue && taskParentId) {
-                showTask = false;
+                // Check if the parent task is expanded
+                const parentTask = document.querySelector(`[data-task-id="${taskParentId}"].task-item`);
+                if (parentTask) {
+                    const parentExpandButton = parentTask.querySelector('.expand-toggle');
+                    if (parentExpandButton) {
+                        const parentIcon = parentExpandButton.querySelector('i');
+                        const isParentExpanded = parentIcon.style.transform === 'rotate(90deg)';
+                        if (!isParentExpanded) {
+                            showTask = false;
+                        }
+                    } else {
+                        showTask = false;
+                    }
+                } else {
+                    showTask = false;
+                }
             }
 
             // Workflow filter
@@ -1798,6 +1818,23 @@
                 const taskWorkflowStatus = taskElement.querySelector('.workflow-btn')?.dataset.workflowStatus;
                 if (taskWorkflowStatus !== workflowValue) {
                     showTask = false;
+                } else if (taskParentId) {
+                    // For child tasks, also check if parent is expanded
+                    const parentTask = document.querySelector(`[data-task-id="${taskParentId}"].task-item`);
+                    if (parentTask) {
+                        const parentExpandButton = parentTask.querySelector('.expand-toggle');
+                        if (parentExpandButton) {
+                            const parentIcon = parentExpandButton.querySelector('i');
+                            const isParentExpanded = parentIcon.style.transform === 'rotate(90deg)';
+                            if (!isParentExpanded) {
+                                showTask = false;
+                            }
+                        } else {
+                            showTask = false;
+                        }
+                    } else {
+                        showTask = false;
+                    }
                 }
             }
 
@@ -2400,6 +2437,25 @@
         });
     }
 
+    // Collapse all expanded parent tasks
+    function collapseAllParentTasks() {
+        const expandButtons = document.querySelectorAll('.expand-toggle');
+        expandButtons.forEach(button => {
+            const taskId = button.dataset.taskId;
+            const icon = button.querySelector('i');
+            const isExpanded = icon.style.transform === 'rotate(90deg)';
+            
+            if (isExpanded) {
+                // Collapse the task
+                icon.style.transform = 'rotate(0deg)';
+                hideChildTasks(taskId);
+                
+                // Update the database state
+                toggleTaskExpansion(taskId);
+            }
+        });
+    }
+
     // Toggle Task Details Dropdown
     function toggleTaskDetails(taskId) {
         const taskItem = document.querySelector(`[data-task-id="${taskId}"].task-item`);
@@ -2818,6 +2874,10 @@
         }
     }
 
+    // Expose user permissions and project info to JavaScript for calendar view
+    window.userPermissions = {{ user_permissions|tojson }};
+    window.projectId = {{ project.id|tojson }};
+
     function initializeCalendarView() {
         // Initialize calendar with tasks data
         const tasksData = {{ tasks_data|tojson }};
@@ -2836,6 +2896,13 @@
                     }
                 }
             }
+            
+            // Setup event listeners after a short delay to ensure DOM is ready
+            setTimeout(() => {
+                if (typeof setupCalendarEventListeners === 'function') {
+                    setupCalendarEventListeners();
+                }
+            }, 100);
         } else {
             // Show message if no tasks
             const container = document.getElementById('calendar-container');

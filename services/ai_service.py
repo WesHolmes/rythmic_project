@@ -8,16 +8,20 @@ from typing import Dict, List, Optional
 class AIAssistant:
     def __init__(self):
         api_key = os.environ.get('OPENAI_API_KEY')
+        model = os.environ.get('AI_MODEL', 'gpt-4o')  # Default to GPT-4o, fallback to gpt-3.5-turbo
+        
         if not api_key:
             print("⚠️  OPENAI_API_KEY not found. AI features will use fallback responses.")
             self.client = None
+            self.model = 'fallback'
         else:
             try:
                 self.client = OpenAI(api_key=api_key)
+                self.model = model
             except Exception as e:
                 print(f"⚠️  Failed to initialize OpenAI client: {e}. Using fallback responses.")
                 self.client = None
-        self.model = "gpt-3.5-turbo"  # Using GPT-3.5-turbo for better compatibility
+                self.model = 'fallback'
     
     def generate_project_brief(self, project_name: str, user_input: str) -> Dict[str, str]:
         """

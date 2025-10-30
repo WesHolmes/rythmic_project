@@ -496,6 +496,48 @@ input[class*="placeholder-gray"]::placeholder, textarea[class*="placeholder-gray
     backdrop-filter: blur(10px);
 }
 
+/* Workflow Filter Buttons */
+.workflow-filter-btn {
+    position: relative;
+    /* right: 500px; */
+    overflow: hidden;
+}
+
+.workflow-filter-btn.active {
+    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.workflow-filter-btn.active:hover {
+    background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+}
+
+.workflow-filter-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Advanced Filters Dropdown */
+#advanced-filters-dropdown {
+    animation: slideDown 0.2s ease-out;
+}
+
+#advanced-filters-dropdown.hidden {
+    display: none !important;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 /* Activity Timeline */
 .activity-timeline {
     position: relative;
@@ -701,7 +743,9 @@ input[type="text"]#new-label-name, input[type="text"]#edit-label-name {
 }
 
 /* WebSocket responsive styles removed */
-    
+
+/* Mobile responsive styles */
+@media (max-width: 768px) {
     .active-user {
         font-size: 0.625rem;
         padding: 0.25rem;
@@ -837,10 +881,7 @@ input[type="text"]#new-label-name, input[type="text"]#edit-label-name {
     color: inherit;
 }
 
-.message-bubble .text-blue-400,
-.message-bubble .text-red-400 {
-    /* Let AI response colors show through */
-}
+/* AI response colors are preserved by default */
 
 /* Chat Input Styles */
 #ai-chat-input::placeholder {
@@ -902,11 +943,904 @@ input[type="text"]#new-label-name, input[type="text"]#edit-label-name {
     opacity: 1;
 }
 
+/* Collaborator Modal Scroll Styles */
+#collaborator-modal .glass {
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh;
+}
+
+#collaborator-modal .flex-1 {
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* Custom scrollbar for collaborator modal content */
+#collaborator-modal .flex-1::-webkit-scrollbar {
+    width: 8px;
+}
+
+#collaborator-modal .flex-1::-webkit-scrollbar-track {
+    background: rgba(31, 41, 55, 0.5);
+    border-radius: 4px;
+}
+
+#collaborator-modal .flex-1::-webkit-scrollbar-thumb {
+    background: rgba(75, 85, 99, 0.8);
+    border-radius: 4px;
+}
+
+/* Advanced Filters Side Panel Styles */
+#advanced-filters-panel {
+    background: linear-gradient(135deg, rgba(17, 24, 39, 0.95) 0%, rgba(31, 41, 55, 0.95) 100%);
+    backdrop-filter: blur(20px);
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.3);
+    border-right: 1px solid rgba(75, 85, 99, 0.3);
+    pointer-events: auto; /* Ensure panel is interactive */
+}
+
+/* Ensure main content remains fully interactive when panel is open */
+body:has(#advanced-filters-panel:not(.-translate-x-full)) {
+    /* No changes needed - content remains fully interactive */
+}
+
+#advanced-filters-panel::-webkit-scrollbar {
+    width: 6px;
+}
+
+#advanced-filters-panel::-webkit-scrollbar-track {
+    background: rgba(31, 41, 55, 0.3);
+    border-radius: 3px;
+}
+
+#advanced-filters-panel::-webkit-scrollbar-thumb {
+    background: rgba(75, 85, 99, 0.6);
+    border-radius: 3px;
+}
+
+#advanced-filters-panel::-webkit-scrollbar-thumb:hover {
+    background: rgba(75, 85, 99, 0.8);
+}
+
+/* Side panel - no overlay needed for non-blocking interaction */
+
+/* Side panel animation */
+#advanced-filters-panel {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Subtle Filter Toggle Button */
+#advanced-filters-toggle {
+    background: linear-gradient(135deg, rgba(31, 41, 55, 0.8) 0%, rgba(17, 24, 39, 0.8) 100%);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(75, 85, 99, 0.3);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+#advanced-filters-toggle:hover {
+    background: linear-gradient(135deg, rgba(55, 65, 81, 0.9) 0%, rgba(31, 41, 55, 0.9) 100%);
+    transform: translateY(-50%) translateX(4px);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+    border-color: rgba(99, 102, 241, 0.4);
+}
+
+#advanced-filters-toggle:active {
+    transform: translateY(-50%) translateX(2px) scale(0.95);
+}
+
+/* Filter button icon animation */
+#advanced-filters-toggle i {
+    transition: transform 0.3s ease;
+}
+
+#advanced-filters-toggle:hover i {
+    transform: scale(1.1);
+}
+
+/* Panel open state - move button */
+#advanced-filters-panel:not(.-translate-x-full) ~ #advanced-filters-toggle {
+    transform: translateY(-50%) translateX(224px);
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.8) 0%, rgba(37, 99, 235, 0.8) 100%);
+    border-color: rgba(59, 130, 246, 0.5);
+}
+
+#advanced-filters-panel:not(.-translate-x-full) ~ #advanced-filters-toggle:hover {
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.9) 0%, rgba(29, 78, 216, 0.9) 100%);
+}
+
+#collaborator-modal .flex-1::-webkit-scrollbar-thumb:hover {
+    background: rgba(107, 114, 128, 0.9);
+}
+
+/* Ensure modal content sections have proper spacing */
+#collaborator-modal .mb-8:last-child {
+    margin-bottom: 0;
+}
+
 /* Responsive styles for AI panel */
 @media (max-width: 768px) {
     #ai-panel-container {
         width: calc(100vw - 2rem);
         right: 1rem !important;
         max-width: 96rem;
+    }
+    
+    /* Mobile adjustments for collaborator modal */
+    #collaborator-modal .glass {
+        margin: 0.5rem;
+        max-height: calc(100vh - 1rem);
+    }
+    
+    #collaborator-modal .flex-1 {
+        padding: 1rem;
+    }
+    
+    #collaborator-modal .flex-shrink-0 {
+        padding: 1rem;
+    }
+}
+
+/* Control Panel Enhanced Styles */
+.risk-item-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.risk-item-card:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* Task selection styles */
+.task-item.selected {
+    background: rgba(59, 130, 246, 0.1) !important;
+    border-left: 3px solid #3b82f6 !important;
+}
+
+.task-item.selected:hover {
+    background: rgba(59, 130, 246, 0.15) !important;
+}
+
+/* Compact view styles */
+.compact-view .task-item {
+    padding: 0.75rem 1.5rem;
+}
+
+.compact-view .task-item .task-content {
+    font-size: 0.875rem;
+}
+
+.compact-view .task-item .task-meta {
+    font-size: 0.75rem;
+}
+
+/* Toggle switch styles */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #4b5563;
+    transition: 0.3s;
+    border-radius: 24px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+    background-color: #3b82f6;
+}
+
+input:checked + .toggle-slider:before {
+    transform: translateX(20px);
+}
+
+/* Control panel section headers */
+.control-panel-section {
+    margin-bottom: 1.5rem;
+}
+
+.control-panel-section h4 {
+    color: #f8fafc;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    font-size: 1rem;
+}
+
+.control-panel-section h4 i {
+    margin-right: 0.5rem;
+    font-size: 1.1rem;
+}
+
+/* Bulk action button states */
+.bulk-action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.bulk-action-btn:disabled:hover {
+    background-color: inherit;
+}
+
+/* Enhanced button styles for control panel */
+.control-panel-btn {
+    transition: all 0.2s ease;
+    font-weight: 500;
+    border-radius: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.control-panel-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.control-panel-btn:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+/* Risk overview in control panel */
+.control-panel .risk-overview {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0.75rem;
+    padding: 1rem;
+}
+
+/* Sort and filter enhancements */
+.control-panel select {
+    background: rgba(55, 65, 81, 0.8);
+    border: 1px solid rgba(75, 85, 99, 0.5);
+    color: #f8fafc;
+    transition: all 0.2s ease;
+}
+
+.control-panel select:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    background: rgba(55, 65, 81, 1);
+}
+
+.control-panel select option {
+    background: #374151;
+    color: #f8fafc;
+}
+
+/* Quick action buttons */
+.quick-action-btn {
+    background: linear-gradient(135deg, var(--btn-color), var(--btn-color-dark));
+    border: none;
+    color: white;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.quick-action-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.quick-action-btn:active {
+    transform: translateY(0);
+}
+
+/* Responsive adjustments for control panel */
+@media (max-width: 768px) {
+    #advanced-filters-panel {
+        width: 100vw;
+        max-width: 240px;
+    }
+    
+    .control-panel-section {
+        margin-bottom: 0.5rem;
+    }
+    
+    .control-panel-section h4 {
+        font-size: 0.75rem;
+    }
+}
+
+/* Additional compact styles for skinnier panel */
+#advanced-filters-panel {
+    min-width: 224px; /* w-56 */
+    max-width: 224px;
+}
+
+#advanced-filters-panel .space-y-3 > * + * {
+    margin-top: 0.75rem;
+}
+
+#advanced-filters-panel .space-y-1\.5 > * + * {
+    margin-top: 0.375rem;
+}
+
+/* Calendar View Styles */
+.calendar-view-container {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 1rem;
+}
+
+.calendar-header {
+    background: rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.calendar-view-toggle {
+    background: rgba(31, 41, 55, 0.8);
+    border-radius: 0.5rem;
+    padding: 0.25rem;
+}
+
+.calendar-view-toggle button {
+    transition: all 0.2s ease;
+    border-radius: 0.375rem;
+}
+
+.calendar-view-toggle button.active {
+    background: #3b82f6;
+    color: white;
+}
+
+.calendar-view-toggle button:not(.active) {
+    color: #d1d5db;
+}
+
+.calendar-view-toggle button:not(.active):hover {
+    color: white;
+    background: rgba(55, 65, 81, 0.7);
+}
+
+.calendar-navigation {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.calendar-nav-btn {
+    padding: 0.5rem;
+    color: #9ca3af;
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.calendar-nav-btn:hover {
+    color: white;
+    background: rgba(55, 65, 81, 0.7);
+}
+
+.calendar-today-btn {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #d1d5db;
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.calendar-today-btn:hover {
+    color: white;
+    background: rgba(55, 65, 81, 0.7);
+}
+
+/* Calendar Grid Styles */
+.calendar-grid {
+    display: grid;
+    gap: 0.25rem;
+}
+
+.calendar-grid-7 {
+    grid-template-columns: repeat(7, 1fr);
+}
+
+.calendar-day-header {
+    text-align: center;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #9ca3af;
+    padding: 0.5rem 0;
+}
+
+.calendar-day-cell {
+    min-height: 120px;
+    padding: 0.5rem;
+    border: 1px solid rgba(55, 65, 81, 0.5);
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+    background: rgba(31, 41, 55, 0.3);
+}
+
+.calendar-day-cell:hover {
+    background: rgba(55, 65, 81, 0.3);
+}
+
+.calendar-day-cell.today {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: #3b82f6;
+}
+
+.calendar-day-cell.other-month {
+    opacity: 0.3;
+}
+
+.calendar-day-number {
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+}
+
+.calendar-day-number.today {
+    color: #60a5fa;
+}
+
+.calendar-day-number.current-month {
+    color: white;
+}
+
+.calendar-day-number.other-month {
+    color: #6b7280;
+}
+
+.calendar-task-count {
+    font-size: 0.75rem;
+    background: #4b5563;
+    color: #d1d5db;
+    padding: 0.125rem 0.5rem;
+    border-radius: 9999px;
+}
+
+/* Task Card Styles */
+.calendar-task-card {
+    background: rgba(55, 65, 81, 0.5);
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-bottom: 0.25rem;
+}
+
+.calendar-task-card:hover {
+    background: rgba(75, 85, 99, 0.5);
+    transform: translateY(-1px);
+}
+
+.calendar-task-card.compact {
+    font-size: 0.75rem;
+    padding: 0.5rem;
+}
+
+.calendar-task-card.normal {
+    font-size: 0.875rem;
+    padding: 0.75rem;
+}
+
+.calendar-task-indicator {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.calendar-task-indicator.blue {
+    background: #3b82f6;
+}
+
+.calendar-task-indicator.green {
+    background: #10b981;
+}
+
+.calendar-task-indicator.red {
+    background: #ef4444;
+}
+
+.calendar-task-indicator.purple {
+    background: #8b5cf6;
+}
+
+.calendar-task-title {
+    font-weight: 600;
+    color: white;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.calendar-task-meta {
+    font-size: 0.75rem;
+    color: #9ca3af;
+    margin-top: 0.25rem;
+}
+
+/* Day View Styles */
+.calendar-day-view {
+    background: rgba(31, 41, 55, 0.3);
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+}
+
+.calendar-day-header-large {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.calendar-day-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: white;
+}
+
+.calendar-day-task-count {
+    font-size: 0.875rem;
+    color: #9ca3af;
+}
+
+.calendar-day-tasks {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+/* Week View Styles */
+.calendar-week-view {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1rem;
+}
+
+.calendar-week-day {
+    background: rgba(31, 41, 55, 0.3);
+    border-radius: 0.75rem;
+    padding: 1rem;
+}
+
+.calendar-week-day.other-month {
+    opacity: 0.5;
+}
+
+.calendar-week-day-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+}
+
+.calendar-week-day-name {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: white;
+}
+
+.calendar-week-day-name.today {
+    color: #60a5fa;
+}
+
+.calendar-week-day-number {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 9999px;
+}
+
+.calendar-week-day-number.today {
+    background: #3b82f6;
+    color: white;
+}
+
+.calendar-week-day-number.normal {
+    background: #374151;
+    color: #d1d5db;
+}
+
+.calendar-week-tasks {
+    min-height: 100px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.calendar-week-no-tasks {
+    font-size: 0.75rem;
+    color: #6b7280;
+    text-align: center;
+}
+
+.calendar-week-more-tasks {
+    font-size: 0.75rem;
+    color: #9ca3af;
+    text-align: center;
+}
+
+/* Month View Styles */
+.calendar-month-view {
+    background: rgba(31, 41, 55, 0.3);
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+}
+
+.calendar-month-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0.25rem;
+    margin-top: 1rem;
+}
+
+.calendar-month-day {
+    min-height: 120px;
+    padding: 0.5rem;
+    border: 1px solid rgba(55, 65, 81, 0.5);
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+    background: rgba(31, 41, 55, 0.3);
+}
+
+.calendar-month-day:hover {
+    background: rgba(55, 65, 81, 0.3);
+}
+
+.calendar-month-day.today {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: #3b82f6;
+}
+
+.calendar-month-day.other-month {
+    opacity: 0.3;
+}
+
+.calendar-month-day-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.25rem;
+}
+
+.calendar-month-day-number {
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.calendar-month-day-number.today {
+    color: #60a5fa;
+}
+
+.calendar-month-day-number.current-month {
+    color: white;
+}
+
+.calendar-month-day-number.other-month {
+    color: #6b7280;
+}
+
+.calendar-month-tasks {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+/* Calendar Legend */
+.calendar-legend {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(55, 65, 81, 0.5);
+}
+
+.calendar-legend-items {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem;
+    font-size: 0.875rem;
+}
+
+.calendar-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.calendar-legend-dot {
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 50%;
+}
+
+.calendar-legend-dot.blue {
+    background: #3b82f6;
+}
+
+.calendar-legend-dot.green {
+    background: #10b981;
+}
+
+.calendar-legend-dot.red {
+    background: #ef4444;
+}
+
+.calendar-legend-dot.purple {
+    background: #8b5cf6;
+}
+
+.calendar-legend-text {
+    color: #d1d5db;
+}
+
+/* Calendar Modal */
+.calendar-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 1rem;
+}
+
+.calendar-modal-content {
+    background: #1f2937;
+    border-radius: 1rem;
+    max-width: 28rem;
+    width: 100%;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.calendar-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.calendar-modal-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: white;
+}
+
+.calendar-modal-close {
+    color: #9ca3af;
+    transition: color 0.2s ease;
+}
+
+.calendar-modal-close:hover {
+    color: white;
+}
+
+.calendar-modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.calendar-task-detail-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: white;
+    margin-bottom: 0.5rem;
+}
+
+.calendar-task-detail-description {
+    color: #d1d5db;
+    font-size: 0.875rem;
+}
+
+.calendar-task-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    font-size: 0.875rem;
+}
+
+.calendar-task-detail-label {
+    color: #9ca3af;
+}
+
+.calendar-task-detail-value {
+    color: white;
+    font-weight: 500;
+}
+
+.calendar-task-detail-value.status-completed {
+    color: #10b981;
+}
+
+.calendar-task-detail-value.status-overdue {
+    color: #ef4444;
+}
+
+.calendar-task-detail-value.status-created {
+    color: #8b5cf6;
+}
+
+.calendar-task-detail-labels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-top: 0.25rem;
+}
+
+.calendar-task-detail-label-tag {
+    padding: 0.125rem 0.5rem;
+    font-size: 0.75rem;
+    border-radius: 9999px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .calendar-week-view {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+    }
+    
+    .calendar-month-grid {
+        grid-template-columns: repeat(7, 1fr);
+        gap: 0.125rem;
+    }
+    
+    .calendar-month-day {
+        min-height: 80px;
+        padding: 0.25rem;
+    }
+    
+    .calendar-legend-items {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    
+    .calendar-task-detail-grid {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+    }
+}
+
+@media (max-width: 640px) {
+    .calendar-navigation {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .calendar-view-toggle {
+        width: 100%;
+        display: flex;
+    }
+    
+    .calendar-view-toggle button {
+        flex: 1;
     }
 }

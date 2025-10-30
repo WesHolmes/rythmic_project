@@ -62,200 +62,234 @@
         </div>
     </div>
 
-    <!-- Actions Card -->
-    <div class="mb-8">
-        <div class="glass rounded-2xl p-6">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-semibold text-white">Project Actions</h3>
-                <div class="flex items-center space-x-2">
-                    {% if user_permissions.can_edit_project %}
-                    <button id="manage-labels-btn"
-                        class="text-pink-400 hover:text-pink-300 px-3 py-1.5 rounded-lg hover:bg-pink-500/10 transition-all duration-200 text-sm">
-                        <i class="fas fa-tags mr-2"></i>Manage Labels
-                    </button>
-                    {% endif %}
-                    {% if user_permissions.can_view_collaborators %}
-                    <button id="manage-collaborators-btn"
-                        class="text-blue-400 hover:text-blue-300 px-3 py-1.5 rounded-lg hover:bg-blue-500/10 transition-all duration-200 text-sm">
-                        <i class="fas fa-users mr-2"></i>
-                        {% if user_permissions.can_manage_collaborators %}
-                            Manage Collaborators ({{ collaborators|length + 1 }})
-                        {% else %}
-                            View Collaborators ({{ collaborators|length + 1 }})
-                        {% endif %}
-                    </button>
-                    {% endif %}
-                </div>
-            </div>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <a href="{{ url_for('export_project', id=project.id) }}" class="action-item-card group">
-                    <div class="flex flex-col items-center p-4">
-                        <div
-                            class="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center mb-3 group-hover:bg-green-500/30 transition-colors">
-                            <i class="fas fa-download text-green-400"></i>
-                        </div>
-                        <span class="text-sm font-medium text-white">Export CSV</span>
-                    </div>
-                </a>
+    <!-- Actions Card removed - functionality migrated to Quick Actions in Control Panel -->
 
-                {% if user_permissions.can_create_tasks %}
-                <a href="{{ url_for('import_project', id=project.id) }}" class="action-item-card group">
-                    <div class="flex flex-col items-center p-4">
-                        <div
-                            class="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center mb-3 group-hover:bg-purple-500/30 transition-colors">
-                            <i class="fas fa-upload text-purple-400"></i>
-                        </div>
-                        <span class="text-sm font-medium text-white">Import CSV</span>
-                    </div>
-                </a>
-                {% endif %}
-
-                <button onclick="toggleTimelineView()" class="action-item-card group">
-                    <div class="flex flex-col items-center p-4">
-                        <div
-                            class="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center mb-3 group-hover:bg-indigo-500/30 transition-colors">
-                            <i class="fas fa-calendar-alt text-indigo-400"></i>
-                        </div>
-                        <span class="text-sm font-medium text-white">Timeline View</span>
-                    </div>
-                </button>
-
-                <button id="generate-summary-btn" class="action-item-card group">
-                    <div class="flex flex-col items-center p-4">
-                        <div
-                            class="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center mb-3 group-hover:bg-cyan-500/30 transition-colors">
-                            <i class="fas fa-chart-line text-cyan-400"></i>
-                        </div>
-                        <span class="text-sm font-medium text-white">AI Summary</span>
-                    </div>
-                </button>
-
-
-            </div>
-
-            <!-- AI Tasks Button (only show if no tasks exist and user can create tasks) -->
-            {% if not tasks and user_permissions.can_create_tasks %}
-            <div class="mt-4 pt-4 border-t border-gray-700">
-                <button id="generate-tasks-btn"
-                    class="w-full flex items-center justify-center p-4 rounded-xl bg-gradient-to-r from-yellow-500/20 to-orange-500/20 hover:from-yellow-500/30 hover:to-orange-500/30 transition-all duration-200 group">
-                    <div
-                        class="w-10 h-10 rounded-lg bg-yellow-500/30 flex items-center justify-center mr-3 group-hover:bg-yellow-500/40 transition-colors">
-                        <i class="fas fa-robot text-yellow-400"></i>
-                    </div>
-                    <div class="text-left">
-                        <div class="text-sm font-medium text-white">Generate Starter Tasks</div>
-                        <div class="text-xs text-gray-400">AI-powered task creation</div>
-                    </div>
-                </button>
-            </div>
-            {% endif %}
-        </div>
-    </div>
-
-    <!-- Risk Dashboard (Auto-displayed) -->
-    <div class="mb-6">
-        <div class="glass rounded-2xl p-6">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-semibold text-white flex items-center">
-                    <i class="fas fa-shield-alt mr-2 text-red-400"></i>
-                    Risk Overview
-                </h3>
-                <button onclick="showDetailedRiskDashboard()"
-                    class="text-sm text-gray-400 hover:text-white transition-colors">
-                    View Details <i class="fas fa-arrow-right ml-1"></i>
-                </button>
-            </div>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div class="risk-item-card">
-                    <div class="p-4 text-center">
-                        <div class="text-2xl font-bold text-green-400" id="risk-low-count">0</div>
-                        <div class="text-sm text-gray-300">Low Risk</div>
-                    </div>
-                </div>
-                <div class="risk-item-card">
-                    <div class="p-4 text-center">
-                        <div class="text-2xl font-bold text-yellow-400" id="risk-medium-count">0</div>
-                        <div class="text-sm text-gray-300">Medium Risk</div>
-                    </div>
-                </div>
-                <div class="risk-item-card">
-                    <div class="p-4 text-center">
-                        <div class="text-2xl font-bold text-orange-400" id="risk-high-count">0</div>
-                        <div class="text-sm text-gray-300">High Risk</div>
-                    </div>
-                </div>
-                <div class="risk-item-card">
-                    <div class="p-4 text-center">
-                        <div class="text-2xl font-bold text-red-400" id="risk-critical-count">0</div>
-                        <div class="text-sm text-gray-300">Critical Risk</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- Filter Section -->
     <div class="glass rounded-2xl p-4 mb-6">
-        <div class="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+        <div class="flex flex-col gap-4">
             <!-- Filter Controls -->
-            <div class="flex flex-wrap gap-3">
+            <div class="flex flex-nowrap gap-2 items-center overflow-x-auto">
+                <!-- Workflow Filter Buttons and Search -->
+                <button id="workflow-all" class="workflow-filter-btn px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium rounded-lg transition-all duration-200 border border-gray-600 active flex-shrink-0">
+                    <i class="fas fa-list mr-2"></i>All Tasks
+                </button>
+                <button id="workflow-backlog" class="workflow-filter-btn px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium rounded-lg transition-all duration-200 border border-gray-600 flex-shrink-0" data-workflow="backlog">
+                    <i class="fas fa-clock mr-2"></i>Unstarted
+                </button>
+                <button id="workflow-in_progress" class="workflow-filter-btn px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium rounded-lg transition-all duration-200 border border-gray-600 flex-shrink-0" data-workflow="in_progress">
+                    <i class="fas fa-play mr-2"></i>Started
+                </button>
+                <button id="workflow-committed" class="workflow-filter-btn px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium rounded-lg transition-all duration-200 border border-gray-600 flex-shrink-0" data-workflow="committed">
+                    <i class="fas fa-check-circle mr-2"></i>Committed
+                </button>
+                <button id="workflow-completed" class="workflow-filter-btn px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium rounded-lg transition-all duration-200 border border-gray-600 flex-shrink-0" data-workflow="completed">
+                    <i class="fas fa-flag-checkered mr-2"></i>Completed
+                </button>
+                
+                <!-- Search Bar -->
+                <div class="relative flex-shrink-0">
+                    <input type="text" id="search-tasks" placeholder="Search tasks..."
+                        class="pl-10 pr-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-48">
+                    <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm"></i>
+                </div>
+            </div>
+        </div>
+    </div>
 
-                <select id="workflow-filter"
-                    class="px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                    <option value="" class="bg-gray-800 text-white">All Workflows</option>
-                    <option value="backlog" class="bg-gray-800 text-white">Backlog Tasks</option>
-                    <option value="in_progress" class="bg-gray-800 text-white">In Progress Tasks</option>
-                    <option value="committed" class="bg-gray-800 text-white">Committed Tasks</option>
-                    <option value="completed" class="bg-gray-800 text-white">Completed Tasks</option>
-                </select>
+    <!-- Subtle Filter Toggle Button -->
+    <button id="advanced-filters-toggle" class="fixed left-4 top-1/2 transform -translate-y-1/2 z-40 bg-gray-800/80 hover:bg-gray-700/90 border border-gray-600/50 hover:border-gray-500/70 rounded-full p-3 text-gray-300 hover:text-white transition-all duration-300 ease-in-out backdrop-blur-sm shadow-lg hover:shadow-xl">
+        <i class="fas fa-bars text-lg"></i>
+    </button>
 
-                <select id="priority-filter"
-                    class="px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                    <option value="" class="bg-gray-800 text-white">All Priorities</option>
-                    <option value="low" class="bg-gray-800 text-white">Low</option>
-                    <option value="medium" class="bg-gray-800 text-white">Medium</option>
-                    <option value="high" class="bg-gray-800 text-white">High</option>
-                </select>
-
-                <select id="label-filter"
-                    class="px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                    <option value="" class="bg-gray-800 text-white">All Labels</option>
-                    {% for label in labels %}
-                    <option value="{{ label.id }}" class="bg-gray-800 text-white">{{ label.name }}</option>
-                    {% endfor %}
-                </select>
-
-                <select id="risk-filter"
-                    class="px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                    <option value="" class="bg-gray-800 text-white">All Risks</option>
-                    <option value="low" class="bg-gray-800 text-white">Low Risk</option>
-                    <option value="medium" class="bg-gray-800 text-white">Medium Risk</option>
-                    <option value="high" class="bg-gray-800 text-white">High Risk</option>
-                    <option value="critical" class="bg-gray-800 text-white">Critical Risk</option>
-                </select>
-
-                <select id="assignment-filter"
-                    class="px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                    <option value="" class="bg-gray-800 text-white">All Tasks</option>
-                    <option value="assigned" class="bg-gray-800 text-white">My Tasks</option>
-                </select>
+    <!-- Control Panel Side Panel -->
+    <div id="advanced-filters-panel" class="fixed left-0 top-0 h-full w-56 bg-gray-900 border-r border-gray-700 transform -translate-x-full transition-transform duration-300 ease-in-out z-50 overflow-y-auto">
+        <div class="p-2">
+            <!-- Panel Header -->
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-base font-semibold text-white flex items-center">
+                    <i class="fas fa-cog mr-1.5 text-blue-400"></i>Control Panel
+                </h3>
+                <button id="close-filters-panel" class="text-gray-400 hover:text-white transition-colors duration-200">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
             </div>
 
-            <!-- Search and Clear -->
-            <div class="flex items-center space-x-2">
-                <div class="relative">
-                    <input type="text" id="search-tasks" placeholder="Search tasks..."
-                        class="pl-10 pr-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                    <i
-                        class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm"></i>
+            <!-- Risk Overview Section -->
+            <div class="mb-3">
+                <div class="bg-gray-800/50 rounded p-2 border border-gray-700">
+                    <div class="flex items-center justify-between mb-2">
+                        <h4 class="text-xs font-semibold text-white flex items-center">
+                            <i class="fas fa-shield-alt mr-1.5 text-red-400"></i>
+                            Risk Overview
+                        </h4>
+                        <button onclick="showDetailedRiskDashboard()"
+                            class="text-xs text-gray-400 hover:text-white transition-colors">
+                            Details <i class="fas fa-arrow-right ml-1"></i>
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-1">
+                        <div class="risk-item-card">
+                            <div class="p-1.5 text-center">
+                                <div class="text-sm font-bold text-green-400" id="risk-low-count">0</div>
+                                <div class="text-xs text-gray-300">Low</div>
+                            </div>
+                        </div>
+                        <div class="risk-item-card">
+                            <div class="p-1.5 text-center">
+                                <div class="text-sm font-bold text-yellow-400" id="risk-medium-count">0</div>
+                                <div class="text-xs text-gray-300">Med</div>
+                            </div>
+                        </div>
+                        <div class="risk-item-card">
+                            <div class="p-1.5 text-center">
+                                <div class="text-sm font-bold text-orange-400" id="risk-high-count">0</div>
+                                <div class="text-xs text-gray-300">High</div>
+                            </div>
+                        </div>
+                        <div class="risk-item-card">
+                            <div class="p-1.5 text-center">
+                                <div class="text-sm font-bold text-red-400" id="risk-critical-count">0</div>
+                                <div class="text-xs text-gray-300">Crit</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <button onclick="clearFilters()"
-                    class="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm transition-colors">
-                    <i class="fas fa-times mr-1"></i>Clear
+            </div>
+
+
+            <!-- Filter Controls -->
+            <div class="mb-3">
+                <h4 class="text-xs font-semibold text-white mb-2 flex items-center">
+                    <i class="fas fa-filter mr-1.5 text-yellow-400"></i>
+                    Filters
+                </h4>
+                <div class="space-y-2">
+                    <!-- Priority Filter -->
+                    <div>
+                        <label class="block text-xs font-medium text-gray-300 mb-1">Priority</label>
+                        <select id="priority-filter"
+                            class="w-full px-1.5 py-1 bg-gray-700 border border-gray-600 rounded text-white text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent">
+                            <option value="" class="bg-gray-700 text-white">All Priorities</option>
+                            <option value="low" class="bg-gray-700 text-white">Low</option>
+                            <option value="medium" class="bg-gray-700 text-white">Medium</option>
+                            <option value="high" class="bg-gray-700 text-white">High</option>
+                        </select>
+                    </div>
+
+                    <!-- Label Filter -->
+                    <div>
+                        <label class="block text-xs font-medium text-gray-300 mb-1">Label</label>
+                        <select id="label-filter"
+                            class="w-full px-1.5 py-1 bg-gray-700 border border-gray-600 rounded text-white text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent">
+                            <option value="" class="bg-gray-700 text-white">All Labels</option>
+                            {% for label in labels %}
+                            <option value="{{ label.id }}" class="bg-gray-700 text-white">{{ label.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Risk Filter -->
+                    <div>
+                        <label class="block text-xs font-medium text-gray-300 mb-1">Risk Level</label>
+                        <select id="risk-filter"
+                            class="w-full px-1.5 py-1 bg-gray-700 border border-gray-600 rounded text-white text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent">
+                            <option value="" class="bg-gray-700 text-white">All Risks</option>
+                            <option value="low" class="bg-gray-700 text-white">Low Risk</option>
+                            <option value="medium" class="bg-gray-700 text-white">Medium Risk</option>
+                            <option value="high" class="bg-gray-700 text-white">High Risk</option>
+                            <option value="critical" class="bg-gray-700 text-white">Critical Risk</option>
+                        </select>
+                    </div>
+
+                    <!-- Assignment Filter -->
+                    <div>
+                        <label class="block text-xs font-medium text-gray-300 mb-1">Assignment</label>
+                        <select id="assignment-filter"
+                            class="w-full px-1.5 py-1 bg-gray-700 border border-gray-600 rounded text-white text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent">
+                            <option value="" class="bg-gray-700 text-white">All Tasks</option>
+                            <option value="assigned" class="bg-gray-700 text-white">My Tasks</option>
+                        </select>
+                    </div>
+
+
+                    <!-- Due Date Filter -->
+                    <div>
+                        <label class="block text-xs font-medium text-gray-300 mb-1">Due Date</label>
+                        <select id="due-date-filter"
+                            class="w-full px-1.5 py-1 bg-gray-700 border border-gray-600 rounded text-white text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent">
+                            <option value="" class="bg-gray-700 text-white">All Dates</option>
+                            <option value="overdue" class="bg-gray-700 text-white">Overdue</option>
+                            <option value="today" class="bg-gray-700 text-white">Due Today</option>
+                            <option value="week" class="bg-gray-700 text-white">This Week</option>
+                            <option value="month" class="bg-gray-700 text-white">This Month</option>
+                            <option value="no_date" class="bg-gray-700 text-white">No Due Date</option>
+                        </select>
+                    </div>
+
+                    <!-- Created Date Filter -->
+                    <div>
+                        <label class="block text-xs font-medium text-gray-300 mb-1">Created</label>
+                        <select id="created-date-filter"
+                            class="w-full px-1.5 py-1 bg-gray-700 border border-gray-600 rounded text-white text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent">
+                            <option value="" class="bg-gray-700 text-white">All Time</option>
+                            <option value="today" class="bg-gray-700 text-white">Today</option>
+                            <option value="week" class="bg-gray-700 text-white">This Week</option>
+                            <option value="month" class="bg-gray-700 text-white">This Month</option>
+                            <option value="year" class="bg-gray-700 text-white">This Year</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="mb-3">
+                <h4 class="text-xs font-semibold text-white mb-2 flex items-center">
+                    <i class="fas fa-bolt mr-1.5 text-purple-400"></i>
+                    Quick Actions
+                </h4>
+                <div class="space-y-1">
+                    <button id="calendar-view-btn" class="w-full px-1.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded transition-all duration-200 flex items-center justify-center">
+                        <i class="fas fa-calendar-alt mr-1"></i>Calendar View
+                    </button>
+                    <button id="ai-summary-btn" class="w-full px-1.5 py-1 bg-purple-600 hover:bg-purple-700 text-white text-xs font-medium rounded transition-all duration-200 flex items-center justify-center">
+                        <i class="fas fa-robot mr-1"></i>AI Summary
+                    </button>
+                    {% if user_permissions.can_manage_collaborators %}
+                    <button id="manage-collaborators-btn" class="w-full px-1.5 py-1 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded transition-all duration-200 flex items-center justify-center">
+                        <i class="fas fa-users mr-1"></i>Manage Collaborators
+                    </button>
+                    {% endif %}
+                    {% if user_permissions.can_edit_project %}
+                    <button id="manage-labels-btn" class="w-full px-1.5 py-1 bg-pink-600 hover:bg-pink-700 text-white text-xs font-medium rounded transition-all duration-200 flex items-center justify-center">
+                        <i class="fas fa-tags mr-1"></i>Manage Labels
+                    </button>
+                    {% endif %}
+                    <a href="{{ url_for('export_project', id=project.id) }}" class="w-full px-1.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded transition-all duration-200 flex items-center justify-center">
+                        <i class="fas fa-download mr-1"></i>Export Project
+                    </a>
+                    {% if user_permissions.can_create_tasks %}
+                    <a href="{{ url_for('import_project', id=project.id) }}" class="w-full px-1.5 py-1 bg-teal-600 hover:bg-teal-700 text-white text-xs font-medium rounded transition-all duration-200 flex items-center justify-center">
+                        <i class="fas fa-upload mr-1"></i>Import Project
+                    </a>
+                    {% endif %}
+                    {% if not tasks and user_permissions.can_create_tasks %}
+                    <button id="generate-tasks-btn" class="w-full px-1.5 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-xs font-medium rounded transition-all duration-200 flex items-center justify-center">
+                        <i class="fas fa-robot mr-1"></i>Generate Starter Tasks
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Clear Filters Button -->
+            <div class="pt-2 border-t border-gray-600">
+                <button id="clear-all-filters" class="w-full px-1.5 py-1 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded transition-all duration-200">
+                    <i class="fas fa-times mr-1"></i>Clear All
                 </button>
             </div>
         </div>
     </div>
+
 
     <!-- Tasks List -->
     <div id="tasks-list" class="glass rounded-2xl overflow-hidden">
@@ -319,6 +353,12 @@
                                         {{ task.title }}
                                     </a>
                                 </h3>
+                                <!-- Due Date for Filtering -->
+                                {% if task.end_date %}
+                                <span class="due-date hidden">{{ task.end_date.strftime('%Y-%m-%d') }}</span>
+                                {% endif %}
+                                <!-- Created Date for Filtering -->
+                                <span class="created-date hidden">{{ task.created_at.strftime('%Y-%m-%d') }}</span>
                                 <!-- Risk Indicator -->
                                 {% if task.risk_level and task.risk_level != 'low' %}
                                 <span
@@ -700,17 +740,8 @@
         {% endif %}
     </div>
 
-    <!-- Timeline View (Hidden by default) -->
-    <div id="timeline-view" class="glass rounded-2xl mt-6" style="display: none;">
-        <div class="px-6 py-4 border-b border-gray-700">
-            <h2 class="text-xl font-semibold text-white">Timeline View</h2>
-        </div>
-        <div class="p-6">
-            <div id="timeline-container" class="min-h-64">
-                <!-- Timeline will be rendered here by JavaScript -->
-            </div>
-        </div>
-    </div>
+    <!-- Calendar View (Hidden by default) -->
+    {% include 'calendar_view.html' %}
 </div>
 
 <!-- Task Assignment Modal -->
@@ -935,6 +966,8 @@
 <!-- WebSocket and real-time features removed - using simple HTTP requests instead -->
 <!-- Sharing Management -->
 <script src="{{ url_for('static', filename='js/sharing.js') }}"></script>
+<!-- Calendar View -->
+<script src="{{ url_for('static', filename='js/calendar.js') }}"></script>
 
 <style>
     /* Custom dropdown styling for better visibility */
@@ -1462,7 +1495,6 @@
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         const generateTasksBtn = document.getElementById('generate-tasks-btn');
-        const generateSummaryBtn = document.getElementById('generate-summary-btn');
         const manageLabelsBtn = document.getElementById('manage-labels-btn');
         // Removed manageDependenciesBtn and riskDashboardBtn as they're no longer needed
         const toggleDragDropBtn = document.getElementById('toggle-drag-drop-btn');
@@ -1506,44 +1538,12 @@
                     alert('Error generating tasks: ' + error.message);
                 } finally {
                     generateTasksBtn.disabled = false;
-                    generateTasksBtn.innerHTML = '<i class="fas fa-robot mr-2"></i>Generate Starter Tasks';
+                    generateTasksBtn.innerHTML = '<i class="fas fa-robot mr-1"></i>Generate Starter Tasks';
                 }
             });
         }
 
-        // Generate AI Summary functionality
-        if (generateSummaryBtn) {
-            generateSummaryBtn.addEventListener('click', async function () {
-                generateSummaryBtn.disabled = true;
-                generateSummaryBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Generating...';
-
-                try {
-                    const response = await fetch('/api/generate-summary', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            project_id: {{ project.id }}
-                        })
-                    });
-
-                    const data = await response.json();
-
-                    if (response.ok) {
-                        // Show summary in a modal or alert
-                        showSummaryModal(data.summary);
-                    } else {
-                        alert('Error: ' + data.error);
-                    }
-                } catch (error) {
-                    alert('Error generating summary: ' + error.message);
-                } finally {
-                    generateSummaryBtn.disabled = false;
-                    generateSummaryBtn.innerHTML = '<i class="fas fa-chart-line mr-2"></i>AI Summary';
-                }
-            });
-        }
+        // Generate AI Summary functionality moved to Quick Actions section (ai-summary-btn handler)
 
     function showSummaryModal(summary) {
         // Create modal
@@ -1629,26 +1629,151 @@
     });
 
     // Filter functionality
-    const workflowFilter = document.getElementById('workflow-filter');
+    const workflowFilterButtons = document.querySelectorAll('.workflow-filter-btn');
     const priorityFilter = document.getElementById('priority-filter');
     const labelFilter = document.getElementById('label-filter');
     const riskFilter = document.getElementById('risk-filter');
     const assignmentFilter = document.getElementById('assignment-filter');
     const searchInput = document.getElementById('search-tasks');
+    const advancedFiltersToggle = document.getElementById('advanced-filters-toggle');
+    const advancedFiltersPanel = document.getElementById('advanced-filters-panel');
+    const closeFiltersPanel = document.getElementById('close-filters-panel');
+    const clearAllFiltersBtn = document.getElementById('clear-all-filters');
 
-    [workflowFilter, priorityFilter, labelFilter, riskFilter, assignmentFilter, searchInput].forEach(element => {
+    // Workflow filter button event listeners
+    workflowFilterButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            // Remove active class from all buttons
+            workflowFilterButtons.forEach(btn => btn.classList.remove('active'));
+            // Add active class to clicked button
+            this.classList.add('active');
+            filterTasks();
+        });
+    });
+
+    // Advanced filters side panel toggle
+    if (advancedFiltersToggle && advancedFiltersPanel) {
+        advancedFiltersToggle.addEventListener('click', function(e) {
+            e.stopPropagation();
+            openFiltersPanel();
+        });
+    }
+
+    // Close filters panel
+    if (closeFiltersPanel) {
+        closeFiltersPanel.addEventListener('click', function() {
+            closeFiltersPanelFunction();
+        });
+    }
+
+    // Close panel with Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && !advancedFiltersPanel.classList.contains('-translate-x-full')) {
+            closeFiltersPanelFunction();
+        }
+    });
+
+    function openFiltersPanel() {
+        advancedFiltersPanel.classList.remove('-translate-x-full');
+        // No overlay, no body scroll prevention - allow full interaction
+    }
+
+    function closeFiltersPanelFunction() {
+        advancedFiltersPanel.classList.add('-translate-x-full');
+        // No overlay to hide
+    }
+
+    // Other filter event listeners
+    [priorityFilter, labelFilter, riskFilter, assignmentFilter, searchInput].forEach(element => {
         if (element) {
             element.addEventListener('change', filterTasks);
             element.addEventListener('input', filterTasks);
         }
     });
 
+    // Control Panel Enhanced Functionality
+    const dueDateFilter = document.getElementById('due-date-filter');
+    const createdDateFilter = document.getElementById('created-date-filter');
+    const calendarViewBtn = document.getElementById('calendar-view-btn');
+    const aiSummaryBtn = document.getElementById('ai-summary-btn');
+    const manageCollaboratorsBtn = document.getElementById('manage-collaborators-btn');
+
+    // Quick Actions
+    if (calendarViewBtn) {
+        calendarViewBtn.addEventListener('click', function() {
+            toggleCalendarView();
+        });
+    }
+
+    if (aiSummaryBtn) {
+        aiSummaryBtn.addEventListener('click', async function() {
+            aiSummaryBtn.disabled = true;
+            aiSummaryBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Generating...';
+
+            try {
+                const response = await fetch('/api/generate-summary', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        project_id: {{ project.id|tojson }}
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Show summary in a modal or alert
+                    showSummaryModal(data.summary);
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error generating summary: ' + error.message);
+            } finally {
+                aiSummaryBtn.disabled = false;
+                aiSummaryBtn.innerHTML = '<i class="fas fa-robot mr-1"></i>AI Summary';
+            }
+        });
+    }
+
+    // manageCollaboratorsBtn is handled by SharingManager in sharing.js
+    // No need to add handler here as it's already set up via event delegation
+
+
+    // Due date filter
+    if (dueDateFilter) {
+        dueDateFilter.addEventListener('change', filterTasks);
+    }
+
+    // Created date filter
+    if (createdDateFilter) {
+        createdDateFilter.addEventListener('change', filterTasks);
+    }
+
+    // Helper functions
+
+    // Removed unused functions - export/import now handled by server-side routes
+
+    // Clear all filters button
+    if (clearAllFiltersBtn) {
+        clearAllFiltersBtn.addEventListener('click', function() {
+            clearAllFilters();
+        });
+    }
+
     function filterTasks() {
-        const workflowValue = workflowFilter.value;
+        // Get active workflow filter
+        const activeWorkflowButton = document.querySelector('.workflow-filter-btn.active');
+        const workflowValue = activeWorkflowButton ? activeWorkflowButton.dataset.workflow : '';
+        
         const priorityValue = priorityFilter.value;
         const labelValue = labelFilter.value;
         const riskValue = riskFilter.value;
         const assignmentValue = assignmentFilter.value;
+        const dueDateValue = dueDateFilter.value;
+        const createdDateValue = createdDateFilter.value;
         const searchValue = searchInput.value.toLowerCase();
 
         const taskElements = document.querySelectorAll('#tasks-list .task-item');
@@ -1656,11 +1781,17 @@
 
         taskElements.forEach(taskElement => {
             const taskTitle = taskElement.querySelector('h3 a').textContent.toLowerCase();
-            const taskPriority = taskElement.querySelector('.text-red-400, .text-yellow-400, .text-green-400')?.parentElement?.textContent.toLowerCase() || '';
+            const taskPriority = taskElement.querySelector('.text-red-400, .text-yellow-400, .text-green-400')?.textContent.toLowerCase() || '';
             const taskLabels = Array.from(taskElement.querySelectorAll('[style*="background-color"]')).map(label => label.textContent.toLowerCase());
             const taskRiskLevel = taskElement.dataset.riskLevel || 'low';
+            const taskParentId = taskElement.dataset.parentId;
 
             let showTask = true;
+
+            // When "All Tasks" is selected (no workflowValue), only show parent tasks (no parent_id)
+            if (!workflowValue && taskParentId) {
+                showTask = false;
+            }
 
             // Workflow filter
             if (workflowValue) {
@@ -1712,6 +1843,74 @@
                 }
             }
 
+
+            // Due date filter
+            if (dueDateValue) {
+                const taskDueDate = taskElement.querySelector('.due-date')?.textContent;
+                if (dueDateValue === 'no_date' && taskDueDate) {
+                    showTask = false;
+                } else if (dueDateValue === 'overdue') {
+                    if (!taskDueDate || new Date(taskDueDate) >= new Date()) {
+                        showTask = false;
+                    }
+                } else if (dueDateValue === 'due_today') {
+                    const today = new Date();
+                    const dueDate = new Date(taskDueDate);
+                    if (!taskDueDate || dueDate.toDateString() !== today.toDateString()) {
+                        showTask = false;
+                    }
+                } else if (dueDateValue === 'due_this_week') {
+                    if (!taskDueDate) {
+                        showTask = false;
+                    } else {
+                        const dueDate = new Date(taskDueDate);
+                        const today = new Date();
+                        const weekFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+                        if (dueDate < today || dueDate > weekFromNow) {
+                            showTask = false;
+                        }
+                    }
+                }
+            }
+
+            // Created date filter
+            if (createdDateValue) {
+                const taskCreatedDate = taskElement.querySelector('.created-date')?.textContent;
+                if (createdDateValue === 'today') {
+                    if (!taskCreatedDate) {
+                        showTask = false;
+                    } else {
+                        const createdDate = new Date(taskCreatedDate);
+                        const today = new Date();
+                        if (createdDate.toDateString() !== today.toDateString()) {
+                            showTask = false;
+                        }
+                    }
+                } else if (createdDateValue === 'this_week') {
+                    if (!taskCreatedDate) {
+                        showTask = false;
+                    } else {
+                        const createdDate = new Date(taskCreatedDate);
+                        const today = new Date();
+                        const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+                        if (createdDate < weekAgo || createdDate > today) {
+                            showTask = false;
+                        }
+                    }
+                } else if (createdDateValue === 'this_month') {
+                    if (!taskCreatedDate) {
+                        showTask = false;
+                    } else {
+                        const createdDate = new Date(taskCreatedDate);
+                        const today = new Date();
+                        const monthAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+                        if (createdDate < monthAgo || createdDate > today) {
+                            showTask = false;
+                        }
+                    }
+                }
+            }
+
             // Search filter
             if (searchValue && !taskTitle.includes(searchValue)) {
                 showTask = false;
@@ -1734,12 +1933,31 @@
 
     // Clear filters function
     window.clearFilters = function () {
-        workflowFilter.value = '';
+        // Reset workflow filter to "All Tasks"
+        workflowFilterButtons.forEach(btn => btn.classList.remove('active'));
+        const allTasksBtn = document.getElementById('workflow-all');
+        if (allTasksBtn) {
+            allTasksBtn.classList.add('active');
+        }
+        
+        // Clear other filters
         priorityFilter.value = '';
         labelFilter.value = '';
         riskFilter.value = '';
         assignmentFilter.value = '';
+        dueDateFilter.value = '';
+        createdDateFilter.value = '';
         searchInput.value = '';
+        
+        // Close advanced filters dropdown
+        if (advancedFiltersDropdown) {
+            advancedFiltersDropdown.classList.add('hidden');
+            const chevron = advancedFiltersToggle?.querySelector('.fa-chevron-down');
+            if (chevron) {
+                chevron.style.transform = 'rotate(0deg)';
+            }
+        }
+        
         filterTasks();
     };
 
@@ -2293,12 +2511,12 @@
     // Show Detailed Risk Dashboard
     function showDetailedRiskDashboard() {
         const tasks = {{ tasks_data|tojson }};
-        const riskStats = {
-        low: 0,
-        medium: 0,
-        high: 0,
-        critical: 0
-    };
+        let riskStats = {
+            low: 0,
+            medium: 0,
+            high: 0,
+            critical: 0
+        };
 
     tasks.forEach(task => {
         riskStats[task.risk_level] = (riskStats[task.risk_level] || 0) + 1;
@@ -2347,7 +2565,7 @@
     async function showLabelsModal() {
         try {
             // Clear any existing dynamically created modals first (but preserve predefined modals)
-            document.querySelectorAll('.fixed:not(#sharing-modal):not(#collaborator-modal):not(#activity-log-modal)').forEach(modal => modal.remove());
+            document.querySelectorAll('.fixed:not(#sharing-modal):not(#collaborator-modal):not(#activity-log-modal):not(#ai-panel):not(#advanced-filters-toggle):not(#advanced-filters-panel)').forEach(modal => modal.remove());
             
             // Fetch current labels
             const response = await fetch(`/projects/{{ project.id }}/labels`);
@@ -2453,7 +2671,7 @@
 
             if (response.ok) {
                 // Clear all existing dynamically created modals and refresh (but preserve predefined modals)
-                document.querySelectorAll('.fixed:not(#sharing-modal):not(#collaborator-modal):not(#activity-log-modal)').forEach(modal => modal.remove());
+                document.querySelectorAll('.fixed:not(#sharing-modal):not(#collaborator-modal):not(#activity-log-modal):not(#ai-panel):not(#advanced-filters-toggle):not(#advanced-filters-panel)').forEach(modal => modal.remove());
                 showLabelsModal();
             } else {
                 alert('Error: ' + data.error);
@@ -2551,7 +2769,7 @@
 
             if (response.ok) {
                 // Clear all existing dynamically created modals and refresh (but preserve predefined modals)
-                document.querySelectorAll('.fixed:not(#sharing-modal):not(#collaborator-modal):not(#activity-log-modal)').forEach(modal => modal.remove());
+                document.querySelectorAll('.fixed:not(#sharing-modal):not(#collaborator-modal):not(#activity-log-modal):not(#ai-panel):not(#advanced-filters-toggle):not(#advanced-filters-panel)').forEach(modal => modal.remove());
                 showLabelsModal();
             } else {
                 alert('Error: ' + data.error);
@@ -2575,7 +2793,7 @@
 
             if (response.ok) {
                 // Clear all existing dynamically created modals and refresh (but preserve predefined modals)
-                document.querySelectorAll('.fixed:not(#sharing-modal):not(#collaborator-modal):not(#activity-log-modal)').forEach(modal => modal.remove());
+                document.querySelectorAll('.fixed:not(#sharing-modal):not(#collaborator-modal):not(#activity-log-modal):not(#ai-panel):not(#advanced-filters-toggle):not(#advanced-filters-panel)').forEach(modal => modal.remove());
                 showLabelsModal();
             } else {
                 alert('Error: ' + data.error);
@@ -2586,74 +2804,54 @@
     };
 });
 
-    function toggleTimelineView() {
+    function toggleCalendarView() {
         const tasksList = document.getElementById('tasks-list');
-        const timelineView = document.getElementById('timeline-view');
-
-        if (timelineView.style.display === 'none') {
+        const calendarView = document.getElementById('calendar-view');
+        
+        if (calendarView.style.display === 'none') {
             tasksList.style.display = 'none';
-            timelineView.style.display = 'block';
-            renderTimeline();
+            calendarView.style.display = 'block';
+            initializeCalendarView();
         } else {
             tasksList.style.display = 'block';
-            timelineView.style.display = 'none';
+            calendarView.style.display = 'none';
         }
     }
 
-    function renderTimeline() {
-        const container = document.getElementById('timeline-container');
-        const tasks = {{ tasks_data|tojson }};
-
-    if (tasks.length === 0) {
-        container.innerHTML = '<p class="text-gray-400 text-center">No tasks to display in timeline</p>';
-        return;
-    }
-
-    // Simple timeline rendering
-    let timelineHTML = '<div class="space-y-4">';
-
-    tasks.forEach(task => {
-        const startDate = task.start_date ? new Date(task.start_date) : null;
-        const endDate = task.end_date ? new Date(task.end_date) : null;
-
-        timelineHTML += `
-            <div class="flex items-center space-x-4 p-4 border border-gray-700 rounded-xl bg-gray-800/30">
-                <div class="flex-shrink-0">
-                    <div class="w-4 h-4 rounded-full ${getStatusColor(task.status)}"></div>
-                </div>
-                <div class="flex-1">
-                    <h4 class="font-medium text-white">${task.title}</h4>
-                    <div class="text-sm text-gray-400">
-                        ${startDate ? startDate.toLocaleDateString() : 'No start date'} 
-                        ${endDate ? ' → ' + endDate.toLocaleDateString() : ''}
-                    </div>
-                </div>
-                <div class="text-sm text-gray-400">
-                    ${task.priority} • ${task.size}
-                </div>
-            </div>
-        `;
-    });
-
-    timelineHTML += '</div>';
-    container.innerHTML = timelineHTML;
-}
-
-    function getStatusColor(status) {
-        switch (status) {
-            case 'completed': return 'bg-green-400';
-            case 'in_progress': return 'bg-blue-400';
-            case 'blocked': return 'bg-red-400';
-            default: return 'bg-gray-500';
+    function initializeCalendarView() {
+        // Initialize calendar with tasks data
+        const tasksData = {{ tasks_data|tojson }};
+        
+        if (tasksData && tasksData.length > 0) {
+            if (window.calendarView) {
+                window.calendarView.tasks = tasksData;
+                window.calendarView.render();
+            } else {
+                if (typeof CalendarView !== 'undefined') {
+                    window.calendarView = new CalendarView(tasksData);
+                } else {
+                    const container = document.getElementById('calendar-container');
+                    if (container) {
+                        container.innerHTML = '<p class="text-red-400 text-center py-8">Calendar view not available. Please refresh the page.</p>';
+                    }
+                }
+            }
+        } else {
+            // Show message if no tasks
+            const container = document.getElementById('calendar-container');
+            if (container) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-8">No tasks to display in calendar</p>';
+            }
         }
     }
+
 
     // Initialize Sharing Manager (only if not already initialized)
     if (!window.sharingManager) {
-        window.sharingManager = new SharingManager({{ project.id }}, {
-            can_manage_collaborators: {{ user_permissions.can_manage_collaborators|lower }},
-            can_manage_share_links: {{ user_permissions.can_manage_share_links|lower }},
-            can_view_collaborators: {{ user_permissions.can_view_collaborators|lower }}
+        window.sharingManager = new SharingManager({{ project.id|tojson }}, {
+            can_manage_collaborators: {{ user_permissions.can_manage_collaborators|lower|tojson }},
+            can_manage_share_links: {{ user_permissions.can_manage_share_links|lower|tojson }},
+            can_view_collaborators: {{ user_permissions.can_view_collaborators|lower|tojson }}
         });
     }
     

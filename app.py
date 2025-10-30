@@ -1733,6 +1733,7 @@ def view_project(id):
             'mitigation_plan': task.mitigation_plan,
             'is_expanded': task.is_expanded,
             'owner_name': task.owner.name if task.owner else 'Unknown',
+            'created_at': task.created_at.isoformat() if task.created_at else None,
             'labels': [{'id': label.id, 'name': label.name, 'color': label.color, 'icon': label.icon} for label in task.labels],
             'dependencies': [{'id': dep.id, 'depends_on_id': dep.depends_on_id, 'depends_on_title': dep.depends_on.title, 'dependency_type': dep.dependency_type} for dep in task.dependencies],
             'dependents': [{'id': dep.id, 'task_id': dep.task_id, 'task_title': dep.task.title, 'dependency_type': dep.dependency_type} for dep in task.dependents],

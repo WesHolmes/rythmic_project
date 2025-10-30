@@ -1,0 +1,86 @@
+<!-- Calendar View Template -->
+<div id="calendar-view" class="glass rounded-2xl mt-6" style="display: none;">
+    <div class="px-6 py-4 border-b border-gray-700">
+        <div class="flex items-center justify-between">
+            <h3 class="text-lg font-semibold text-white">
+                <i class="fas fa-calendar-alt mr-2"></i>Calendar View
+            </h3>
+            <div class="flex items-center space-x-2">
+                <!-- View Toggle Buttons -->
+                <div class="flex bg-gray-800 rounded-lg p-1">
+                    <button id="calendar-day-view" class="px-3 py-1 text-xs font-medium rounded-md transition-all duration-200 bg-blue-600 text-white">
+                        <i class="fas fa-calendar-day mr-1"></i>Day
+                    </button>
+                    <button id="calendar-week-view" class="px-3 py-1 text-xs font-medium rounded-md transition-all duration-200 text-gray-300 hover:text-white hover:bg-gray-700">
+                        <i class="fas fa-calendar-week mr-1"></i>Week
+                    </button>
+                    <button id="calendar-month-view" class="px-3 py-1 text-xs font-medium rounded-md transition-all duration-200 text-gray-300 hover:text-white hover:bg-gray-700">
+                        <i class="fas fa-calendar mr-1"></i>Month
+                    </button>
+                </div>
+                
+                <!-- Navigation -->
+                <div class="flex items-center space-x-2">
+                    <button id="calendar-prev" class="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-all duration-200">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <span id="calendar-current-date" class="text-sm font-medium text-white min-w-[120px] text-center"></span>
+                    <button id="calendar-next" class="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-all duration-200">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                    <button id="calendar-today" class="px-3 py-1 text-xs font-medium text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-all duration-200">
+                        Today
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="p-6">
+        <!-- Calendar Container -->
+        <div id="calendar-container" class="min-h-96">
+            <!-- Calendar content will be dynamically generated here -->
+        </div>
+        
+        <!-- Legend for task types -->
+        <div class="mt-6 pt-4 border-t border-gray-700">
+            <div class="flex flex-wrap items-center gap-4 text-sm">
+                <div class="flex items-center space-x-2">
+                    <div class="w-3 h-3 rounded-full bg-blue-500"></div>
+                    <span class="text-gray-300">Tasks with due dates</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <div class="w-3 h-3 rounded-full bg-purple-500"></div>
+                    <span class="text-gray-300">Tasks without due dates (creation date)</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                    <span class="text-gray-300">Completed tasks</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                    <span class="text-gray-300">Overdue tasks</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Task Detail Modal for Calendar -->
+<div id="calendar-task-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="bg-gray-800 rounded-2xl max-w-md w-full max-h-[80vh] overflow-y-auto">
+            <div class="p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-white">Task Details</h3>
+                    <button id="close-calendar-task-modal" class="text-gray-400 hover:text-white">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div id="calendar-task-content">
+                    <!-- Task details will be populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -4,7 +4,8 @@ import time
 from datetime import datetime, timedelta
 from openai import OpenAI
 from typing import Dict, List, Optional
-
+import httpx
+#for content generation
 class AIAssistant:
     def __init__(self):
         api_key = os.environ.get('OPENAI_API_KEY')
@@ -16,7 +17,11 @@ class AIAssistant:
             self.model = 'fallback'
         else:
             try:
-                self.client = OpenAI(api_key=api_key)
+                # Create a clean httpx client without proxy settings to avoid conflicts
+                # This works around an issue where the OpenAI library tries to pass
+                # proxy settings that httpx doesn't accept in this version
+                http_client = httpx.Client(timeout=60.0)
+                self.client = OpenAI(api_key=api_key, http_client=http_client)
                 self.model = model
             except Exception as e:
                 print(f"⚠️  Failed to initialize OpenAI client: {e}. Using fallback responses.")

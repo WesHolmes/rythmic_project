@@ -4,13 +4,14 @@ Conversational AI Service for Rhythmic
 Provides intelligent, context-aware AI assistance that understands the entire application
 and respects user permissions.
 """
-
+#for ai chat
 import os
 import json
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 from openai import OpenAI
 from flask_login import current_user
+import httpx
 
 
 class ConversationalAI:
@@ -26,7 +27,11 @@ class ConversationalAI:
             self.model = 'fallback'
         else:
             try:
-                self.client = OpenAI(api_key=api_key)
+                # Create a clean httpx client without proxy settings to avoid conflicts
+                # This works around an issue where the OpenAI library tries to pass
+                # proxy settings that httpx doesn't accept in this version
+                http_client = httpx.Client(timeout=60.0)
+                self.client = OpenAI(api_key=api_key, http_client=http_client)
                 self.model = model
             except Exception as e:
                 print(f"⚠️  Failed to initialize OpenAI client: {e}. Using fallback responses.")

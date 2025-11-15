@@ -304,9 +304,21 @@ TASK PROPERTIES:
             
             projects_data.append(project_data)
         
+        # Sort tasks by updated_at DESC before building task data
+        # This ensures recently updated tasks are prioritized
+        all_tasks_sorted = sorted(
+            all_tasks,
+            key=lambda t: (
+                t.updated_at or datetime.min,
+                t.created_at or datetime.min,
+                t.id or 0
+            ),
+            reverse=True
+        )
+        
         # Build detailed task data with role-based filtering
         tasks_data = []
-        for task in all_tasks:
+        for task in all_tasks_sorted:
             # Get user's role in the task's project
             project = next((p for p in all_user_projects if p.id == task.project_id), None)
             if not project:
@@ -325,6 +337,7 @@ TASK PROPERTIES:
                 print(f"Warning: Could not re-query task {task.id}: {e}")
             
             # Base task data (all roles can see)
+            # Include raw timestamps for sorting purposes
             task_data = {
                 'id': task.id,
                 'title': task.title,
@@ -336,6 +349,8 @@ TASK PROPERTIES:
                 'end_date': self._format_date(task.end_date),
                 'created_at': self._format_timestamp(task.created_at.isoformat() if task.created_at else None),
                 'updated_at': self._format_timestamp(task.updated_at.isoformat() if task.updated_at else None),
+                'updated_at_raw': task.updated_at.isoformat() if task.updated_at else None,  # Raw ISO for sorting
+                'created_at_raw': task.created_at.isoformat() if task.created_at else None,  # Raw ISO for sorting
                 'parent_id': task.parent_id,
                 'is_flagged': task.is_flagged,
                 # Add tracking fields for last viewed/edited - get fresh from database
@@ -472,7 +487,7 @@ TASK PROPERTIES:
                     overdue_count += 1
         return overdue_count
     
-    def generate_response(self, user_message: str, context: Dict, project_id: Optional[int] = None) -> str:
+    def generate_response(self, user_message: str, context: Dict, project_id: Optional[int] = None, conversation_history: Optional[List[Dict]] = None) -> str:
         """Generate intelligent response using OpenAI
         
         Args:
@@ -528,10 +543,65 @@ TASK PROPERTIES:
                     current_project_name = current_project.get('name')
         
         # Build system prompt with context
-        # Limit task data in prompt to avoid token limits (show summary + sample)
+        # Tasks are already sorted by updated_at DESC from build_user_context
+        # Use raw timestamps for accurate sorting if available
+        all_tasks_sorted = sorted(
+            all_tasks,
+            key=lambda t: (
+                t.get('updated_at_raw') or t.get('updated_at') or '',
+                t.get('created_at_raw') or t.get('created_at') or '',
+                t.get('id', 0)
+            ),
+            reverse=True
+        )
+        
+        # Create compact representation of ALL tasks (minimal fields to save tokens)
+        # Format: [id, title, parent_id, updated_at, status, workflow_status, last_update_user]
+        compact_tasks = []
+        for task in all_tasks_sorted:
+            compact_task = [
+                task.get('id'),
+                task.get('title', ''),
+                task.get('parent_id'),
+                task.get('updated_at', ''),
+                task.get('status', ''),
+                task.get('workflow_status', ''),
+                task.get('last_update_user', '')
+            ]
+            # Add assigned_to if present (compact format)
+            if task.get('assigned_to'):
+                assigned = task.get('assigned_to', {})
+                compact_task.append(assigned.get('user_name', 'Unknown'))
+            else:
+                compact_task.append(None)
+            # Add is_flagged if true
+            if task.get('is_flagged'):
+                compact_task.append(True)
+            compact_tasks.append(compact_task)
+        
+        # Get detailed info for top 20 recently updated tasks (for context)
+        detailed_tasks = all_tasks_sorted[:20]
+        
+        # Build hierarchy map for efficient parent-child lookups
+        # Format: {parent_id: [child_id1, child_id2, ...]}
+        hierarchy_map = {}
+        child_task_count = 0
+        for task in all_tasks_sorted:
+            parent_id = task.get('parent_id')
+            if parent_id:
+                child_task_count += 1
+                if parent_id not in hierarchy_map:
+                    hierarchy_map[parent_id] = []
+                hierarchy_map[parent_id].append(task.get('id'))
+        
+        # Log task counts for verification
+        print(f"AI Context: Total tasks={len(all_tasks_sorted)}, Child tasks={child_task_count}, Parent tasks={len(all_tasks_sorted) - child_task_count}")
+        
         tasks_summary = {
             'total_tasks': len(all_tasks),
-            'sample_tasks': all_tasks[:20]  # Include first 20 tasks as examples
+            'compact_tasks': compact_tasks,  # ALL tasks in compact format
+            'detailed_tasks': detailed_tasks,  # Top 20 with full details
+            'hierarchy': hierarchy_map  # Parent-child relationships
         }
         
         # Prepare project name text for use in prompts
@@ -554,6 +624,11 @@ You are currently in the project: {project_name_text} (ID: {project_id})
 - When showing timestamps, use human-friendly formats like "2 hours ago", "3 days ago", "2 weeks ago" instead of ISO format
 """
         
+        # Use compact JSON (no indentation) to save tokens
+        compact_tasks_json = json.dumps(tasks_summary['compact_tasks'], separators=(',', ':'))
+        detailed_tasks_json = json.dumps(tasks_summary['detailed_tasks'], separators=(',', ':'))
+        hierarchy_json = json.dumps(tasks_summary['hierarchy'], separators=(',', ':'))
+        
         system_prompt = f"""You are an AI assistant for Rhythmic, a powerful project management application.
 {project_context_note}
 
@@ -565,33 +640,51 @@ Username: {context['user_name']}
 User ID: {context.get('user_id', 'N/A')}
 
 PROJECTS ({len(context['projects'])} total):
-{json.dumps(context['projects'], indent=2)}
+{json.dumps(context['projects'], separators=(',', ':'))}
 
 TASK STATISTICS:
-{json.dumps(all_task_stats, indent=2)}
+{json.dumps(all_task_stats, separators=(',', ':'))}
 
-TASKS ({tasks_summary['total_tasks']} total):
-You have access to detailed task information including:
-- Task titles, descriptions, status, workflow status
-- Dates (start, end, created, updated, workflow timestamps)
-- Priority, size, risk level and risk details
-- Assignment information (who's assigned, who assigned it, when)
-- Flagging details (flags, comments, who flagged/resolved)
-- Labels, dependencies, and parent-child relationships
-- Tracking fields: last_read_date (when task was last viewed), last_read_user (who last viewed it), last_update_user (who last edited it)
-- All fields are filtered based on user's role in each project
+ALL TASKS ({tasks_summary['total_tasks']} total):
+You have access to ALL {tasks_summary['total_tasks']} tasks from the current project. Tasks are sorted by most recently updated first.
 
-Sample tasks (showing structure of available data):
-{json.dumps(tasks_summary['sample_tasks'], indent=2)}
+COMPACT TASK LIST (ALL {tasks_summary['total_tasks']} tasks):
+Format: [id, title, parent_id, updated_at, status, workflow_status, last_update_user, assigned_to_user, is_flagged]
+Each array represents one task. Use this to see ALL tasks including child tasks.
+{compact_tasks_json}
 
-Note: You have access to {tasks_summary['total_tasks']} task{'s' if tasks_summary['total_tasks'] != 1 else ''} from the current project. When answering questions, you can reference any task by ID or title from this project.
+TASK HIERARCHY (Parent-Child Relationships):
+This map shows which tasks are children of which parents: {{parent_id: [child_id1, child_id2, ...]}}
+Use this to understand task relationships and find child tasks.
+{hierarchy_json}
+
+DETAILED TASK INFO (Top 20 Most Recently Updated):
+These are the 20 most recently updated tasks with full details (descriptions, dates, assignments, etc.):
+{detailed_tasks_json}
+
+TASK QUERY INSTRUCTIONS:
+- To find the "last updated" or "newest" task: Check the FIRST task in the compact list (tasks are sorted by updated_at DESC)
+- To find child tasks: Use the hierarchy map - look up the parent_id to see all child task IDs
+- To find a specific task: Search the compact list by title or ID
+- Child tasks ARE included in the compact list - they have a non-null parent_id
+- When asked about "all tasks", include both parent and child tasks from the compact list
+- The detailed list shows full info for the 20 most recently updated tasks only
+
+IMPORTANT NOTES:
+- You can see ALL {tasks_summary['total_tasks']} tasks in the compact list above (including ALL child tasks)
+- The compact list format: [id, title, parent_id, updated_at, status, workflow_status, last_update_user, assigned_to_user, is_flagged]
+- Child tasks are included in the compact list - they have a non-null parent_id value
+- Use the hierarchy map to find all children of a parent task: hierarchy[parent_id] returns [child_id1, child_id2, ...]
+- The detailed list shows full information for the 20 most recently updated tasks
+- When asked about "last updated" or "newest" tasks, the FIRST task in the compact list is the most recently updated
+- All tasks shown are from the current project {project_name_text if project_id is not None else 'only'}
 {f' IMPORTANT: All {tasks_summary["total_tasks"]} tasks shown are from the current project {project_name_text} only. Do NOT reference tasks from other projects.' if project_id is not None and project_name_text else ''}
 
 STALE TASKS ({len(all_stale_tasks)}): Tasks not updated in 30+ days
-{json.dumps(all_stale_tasks[:5], indent=2)}
+{json.dumps(all_stale_tasks[:5], separators=(',', ':'))}
 
 AT-RISK TASKS ({len(all_at_risk_tasks)}): Due within 7 days or overdue
-{json.dumps(all_at_risk_tasks[:5], indent=2)}
+{json.dumps(all_at_risk_tasks[:5], separators=(',', ':'))}
 
 ROLE-BASED PERMISSIONS:
 - Viewer: Can see basic task info, assignments, labels, dependencies
@@ -622,13 +715,20 @@ RESPONSE FORMAT:
 - Include actionable suggestions when relevant
 - Reference specific task IDs, project names, and user names when helpful"""
 
+        # Build messages array with conversation history
+        messages = [{"role": "system", "content": system_prompt}]
+        
+        # Add conversation history if provided
+        if conversation_history:
+            messages.extend(conversation_history)
+        
+        # Add current user message
+        messages.append({"role": "user", "content": user_message})
+        
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_message}
-                ],
+                messages=messages,
                 temperature=0.7,
                 max_tokens=1500  # Increased to handle more detailed responses with full context
             )

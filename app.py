@@ -4829,6 +4829,7 @@ def ai_chat():
         data = request.get_json()
         message = data.get('message', '').strip()
         project_id = data.get('project_id')
+        conversation_history = data.get('conversation_history', [])  # Array of {role, content} objects
         
         # Convert project_id to int if it's provided (handles string from JSON)
         if project_id is not None:
@@ -4840,6 +4841,21 @@ def ai_chat():
         if not message:
             return jsonify({'error': 'Message is required'}), 400
         
+        # Validate and limit conversation history (last 15 messages to manage tokens)
+        if conversation_history:
+            # Ensure it's a list and limit to last 15 messages
+            if isinstance(conversation_history, list):
+                conversation_history = conversation_history[-15:]
+                # Validate format: should have 'role' and 'content'
+                conversation_history = [
+                    msg for msg in conversation_history 
+                    if isinstance(msg, dict) and 'role' in msg and 'content' in msg
+                ]
+            else:
+                conversation_history = []
+        else:
+            conversation_history = []
+        
         # Get user's current context
         user = current_user
         
@@ -4849,8 +4865,8 @@ def ai_chat():
         # Build comprehensive user context (filtered by project if provided)
         context = ai_assistant.build_user_context(user, project_id=project_id)
         
-        # Generate intelligent response
-        response = ai_assistant.generate_response(message, context, project_id=project_id)
+        # Generate intelligent response with conversation history
+        response = ai_assistant.generate_response(message, context, project_id=project_id, conversation_history=conversation_history)
         
         return jsonify({'response': response})
         

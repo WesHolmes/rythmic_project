@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     let isOpen = false;
     let insightsLoaded = false;
+    let conversationHistory = [];  // Store conversation history for context
     
     // Toggle panel open/close
     function togglePanel() {
@@ -33,6 +34,21 @@ document.addEventListener('DOMContentLoaded', function() {
             aiPanelContainer.classList.add('hidden');
         }
     }
+    
+    // Clear conversation when project changes (detect project ID change)
+    let currentProjectId = null;
+    function checkProjectChange() {
+        const projectElement = document.querySelector('[data-project-id]');
+        const newProjectId = projectElement ? parseInt(projectElement.dataset.projectId) : null;
+        if (currentProjectId !== null && currentProjectId !== newProjectId) {
+            // Project changed, clear conversation history
+            clearConversationHistory();
+        }
+        currentProjectId = newProjectId;
+    }
+    
+    // Check for project changes periodically
+    setInterval(checkProjectChange, 1000);
     
     // Load and display AI insights
     async function loadInsights() {
@@ -137,10 +153,25 @@ document.addEventListener('DOMContentLoaded', function() {
         
         aiChatMessages.appendChild(messageDiv);
         
+        // Add to conversation history only for assistant messages (user messages added after API call)
+        // This prevents double-adding user messages
+        if (!isUser) {
+            conversationHistory.push({role: 'assistant', content: content});
+            // Keep only last 15 messages to manage tokens
+            if (conversationHistory.length > 15) {
+                conversationHistory = conversationHistory.slice(-15);
+            }
+        }
+        
         // Scroll to bottom
         aiChatMessages.scrollTop = aiChatMessages.scrollHeight;
         
         return messageDiv;
+    }
+    
+    // Clear conversation history (useful when switching projects)
+    function clearConversationHistory() {
+        conversationHistory = [];
     }
     
     // Show typing indicator
@@ -163,18 +194,21 @@ document.addEventListener('DOMContentLoaded', function() {
         // Clear input
         aiChatInput.value = '';
         
-        // Add user message
-        addMessage(message, true);
-        
         // Show typing indicator
         showTypingIndicator();
+        
+        // Add user message to UI (but not to history yet - we'll add it after getting response)
+        const userMessageDiv = addMessage(message, true);
         
         try {
             // Get project ID from the page if available
             const projectElement = document.querySelector('[data-project-id]');
             const projectId = projectElement ? parseInt(projectElement.dataset.projectId) : null;
             
-            // Send message to backend
+            // Send message to backend with conversation history
+            // Send current history (without the message we just added to UI)
+            const historyToSend = conversationHistory.slice();  // Copy current history
+            
             const response = await fetch('/api/ai-chat', {
                 method: 'POST',
                 headers: {
@@ -183,6 +217,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 body: JSON.stringify({
                     message: message,
                     project_id: projectId,
+                    conversation_history: historyToSend,
                     timestamp: new Date().toISOString()
                 })
             });
@@ -191,6 +226,13 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Hide typing indicator
             hideTypingIndicator();
+            
+            // Add user message to conversation history now (after successful send)
+            conversationHistory.push({role: 'user', content: message});
+            // Keep only last 15 messages to manage tokens
+            if (conversationHistory.length > 15) {
+                conversationHistory = conversationHistory.slice(-15);
+            }
             
             if (data.response) {
                 addMessage(data.response, false);

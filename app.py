@@ -300,12 +300,17 @@ def fix_database_schema():
         flagging_columns = ['is_flagged', 'flag_comment', 'flagged_by', 'flagged_at', 'flag_resolved', 'flag_resolved_at', 'flag_resolved_by']
         flagging_missing = [col for col in flagging_columns if col not in columns]
         
-        if not workflow_missing and not flagging_missing:
-            print("All workflow and flagging columns already exist")
+        # Check if task tracking columns are missing
+        tracking_columns = ['task_create_user', 'task_last_read_date', 'task_last_read_user', 'task_last_update_user', 'task_delete_date', 'task_delete_user', 'task_complete_user']
+        tracking_missing = [col for col in tracking_columns if col not in columns]
+        
+        if not workflow_missing and not flagging_missing and not tracking_missing:
+            print("All workflow, flagging, and tracking columns already exist")
             return True
         
         print(f"Missing workflow columns: {workflow_missing}")
         print(f"Missing flagging columns: {flagging_missing}")
+        print(f"Missing tracking columns: {tracking_missing}")
         
         # Add missing columns
         with db.engine.connect() as conn:
@@ -420,6 +425,92 @@ def fix_database_schema():
                     print("✓ Added flag_resolved_by column")
                 except Exception as e:
                     print(f"Could not add flag_resolved_by column: {e}")
+            
+            # Add task tracking columns
+            db_type = str(db.engine.dialect.name).lower()
+            
+            if 'task_create_user' not in columns:
+                try:
+                    if db_type == 'sqlite':
+                        conn.execute(text("ALTER TABLE task ADD task_create_user INTEGER REFERENCES user(id)"))
+                    else:
+                        conn.execute(text("ALTER TABLE task ADD task_create_user INTEGER REFERENCES [user](id)"))
+                    print("✓ Added task_create_user column")
+                except Exception as e:
+                    print(f"Could not add task_create_user column: {e}")
+            
+            if 'task_last_read_date' not in columns:
+                try:
+                    if db_type == 'sqlite':
+                        conn.execute(text("ALTER TABLE task ADD task_last_read_date DATETIME"))
+                    else:
+                        conn.execute(text("ALTER TABLE task ADD task_last_read_date DATETIME2"))
+                    print("✓ Added task_last_read_date column")
+                except Exception as e:
+                    print(f"Could not add task_last_read_date column: {e}")
+            
+            if 'task_last_read_user' not in columns:
+                try:
+                    if db_type == 'sqlite':
+                        conn.execute(text("ALTER TABLE task ADD task_last_read_user INTEGER REFERENCES user(id)"))
+                    else:
+                        conn.execute(text("ALTER TABLE task ADD task_last_read_user INTEGER REFERENCES [user](id)"))
+                    print("✓ Added task_last_read_user column")
+                except Exception as e:
+                    print(f"Could not add task_last_read_user column: {e}")
+            
+            if 'task_last_update_user' not in columns:
+                try:
+                    if db_type == 'sqlite':
+                        conn.execute(text("ALTER TABLE task ADD task_last_update_user INTEGER REFERENCES user(id)"))
+                    else:
+                        conn.execute(text("ALTER TABLE task ADD task_last_update_user INTEGER REFERENCES [user](id)"))
+                    print("✓ Added task_last_update_user column")
+                except Exception as e:
+                    print(f"Could not add task_last_update_user column: {e}")
+            
+            if 'task_delete_date' not in columns:
+                try:
+                    if db_type == 'sqlite':
+                        conn.execute(text("ALTER TABLE task ADD task_delete_date DATETIME"))
+                    else:
+                        conn.execute(text("ALTER TABLE task ADD task_delete_date DATETIME2"))
+                    print("✓ Added task_delete_date column")
+                except Exception as e:
+                    print(f"Could not add task_delete_date column: {e}")
+            
+            if 'task_delete_user' not in columns:
+                try:
+                    if db_type == 'sqlite':
+                        conn.execute(text("ALTER TABLE task ADD task_delete_user INTEGER REFERENCES user(id)"))
+                    else:
+                        conn.execute(text("ALTER TABLE task ADD task_delete_user INTEGER REFERENCES [user](id)"))
+                    print("✓ Added task_delete_user column")
+                except Exception as e:
+                    print(f"Could not add task_delete_user column: {e}")
+            
+            if 'task_complete_user' not in columns:
+                try:
+                    if db_type == 'sqlite':
+                        conn.execute(text("ALTER TABLE task ADD task_complete_user INTEGER REFERENCES user(id)"))
+                    else:
+                        conn.execute(text("ALTER TABLE task ADD task_complete_user INTEGER REFERENCES [user](id)"))
+                    print("✓ Added task_complete_user column")
+                except Exception as e:
+                    print(f"Could not add task_complete_user column: {e}")
+            
+            # Backfill existing tasks with reasonable defaults
+            if tracking_missing:
+                try:
+                    # Set task_create_user to owner_id
+                    conn.execute(text("UPDATE task SET task_create_user = owner_id WHERE task_create_user IS NULL"))
+                    # Set task_complete_user for completed tasks
+                    conn.execute(text("UPDATE task SET task_complete_user = owner_id WHERE task_complete_user IS NULL AND (status = 'completed' OR workflow_status = 'completed' OR completed_at IS NOT NULL)"))
+                    # Set task_last_update_user for updated tasks
+                    conn.execute(text("UPDATE task SET task_last_update_user = owner_id WHERE task_last_update_user IS NULL AND updated_at IS NOT NULL AND created_at IS NOT NULL AND updated_at != created_at"))
+                    print("✓ Backfilled task tracking data for existing tasks")
+                except Exception as e:
+                    print(f"Could not backfill task tracking data: {e}")
             
             # Update existing tasks to have proper workflow_status
             if workflow_missing:
@@ -642,12 +733,26 @@ class Task(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
+    # Task Tracking Fields for Conversational AI
+    task_create_user = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # User that created the task (created_at tracks date)
+    task_last_read_date = db.Column(db.DateTime, nullable=True)  # Date the task was last read
+    task_last_read_user = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # Last user to read the task
+    task_last_update_user = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # Last user to update the task (updated_at tracks date)
+    task_delete_date = db.Column(db.DateTime, nullable=True)  # Date the task was deleted
+    task_delete_user = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # User that deleted the task
+    task_complete_user = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # User that completed the task (completed_at tracks date)
+    
     # Relationships
     owner = db.relationship('User', backref='tasks', foreign_keys=[owner_id])
     assigned_user = db.relationship('User', foreign_keys=[assigned_to], backref='assigned_tasks')
     assigner = db.relationship('User', foreign_keys=[assigned_by], backref='assigned_tasks_by_me')
     flagged_user = db.relationship('User', foreign_keys=[flagged_by], backref='flagged_tasks')
     flag_resolver = db.relationship('User', foreign_keys=[flag_resolved_by], backref='resolved_flags')
+    create_user = db.relationship('User', foreign_keys=[task_create_user], backref='created_tasks')
+    last_read_user = db.relationship('User', foreign_keys=[task_last_read_user], backref='read_tasks')
+    last_update_user = db.relationship('User', foreign_keys=[task_last_update_user], backref='updated_tasks')
+    delete_user = db.relationship('User', foreign_keys=[task_delete_user], backref='deleted_tasks')
+    complete_user = db.relationship('User', foreign_keys=[task_complete_user], backref='completed_tasks')
     children = db.relationship('Task', backref=db.backref('parent', remote_side=[id]), lazy=True)
     labels = db.relationship('Label', secondary='task_labels', back_populates='tasks')
     
@@ -1931,7 +2036,8 @@ def new_task(project_id):
             assigned_to=assigned_to,
             assigned_by=assigned_by,
             assigned_at=assigned_at,
-            workflow_status=request.form['status']  # Set workflow_status to match status initially
+            workflow_status=request.form['status'],  # Set workflow_status to match status initially
+            task_create_user=current_user.id  # Track who created the task
         )
         db.session.add(task)
         db.session.flush()  # Get the task ID
@@ -2026,6 +2132,12 @@ def edit_task(project_id, task_id):
         flash('You do not have permission to edit tasks in this project')
         return redirect(url_for('view_project', id=project_id))
     
+    # Track task read when edit page is viewed (GET request)
+    if request.method == 'GET':
+        task.task_last_read_date = datetime.utcnow()
+        task.task_last_read_user = current_user.id
+        db.session.commit()
+    
     if request.method == 'POST':
         task.title = request.form['title']
         task.description = request.form['description']
@@ -2039,6 +2151,7 @@ def edit_task(project_id, task_id):
         task.risk_description = request.form.get('risk_description', '')
         task.mitigation_plan = request.form.get('mitigation_plan', '')
         task.updated_at = datetime.utcnow()
+        task.task_last_update_user = current_user.id  # Track who last updated the task
         
         # Handle task assignment (only if fields are available)
         assigned_to_id = request.form.get('assigned_to')
@@ -2144,6 +2257,10 @@ def delete_task(project_id, task_id):
         return redirect(url_for('view_project', id=project_id))
     
     task_title = task.title
+    
+    # Track deletion before deleting
+    task.task_delete_date = datetime.utcnow()
+    task.task_delete_user = current_user.id
     
     # Log the activity before deletion
     SharingActivityLog.log_activity(
@@ -2532,7 +2649,8 @@ def import_project(id):
                         status=row.get('Status', 'backlog'),
                         priority=row.get('Priority', 'medium'),
                         size=row.get('Size', 'medium'),
-                        parent_id=int(row['Parent ID']) if pd.notna(row.get('Parent ID')) else None
+                        parent_id=int(row['Parent ID']) if pd.notna(row.get('Parent ID')) else None,
+                        task_create_user=current_user.id  # Track who created the task
                     )
                     db.session.add(task)
                 db.session.commit()
@@ -2860,7 +2978,8 @@ def generate_starter_tasks(project_id):
                 end_date=end_date,
                 status='backlog',
                 priority=task_data.get('priority', 'medium'),
-                size=task_data.get('size', 'medium')
+                size=task_data.get('size', 'medium'),
+                task_create_user=current_user.id  # Track who created the task
             )
             db.session.add(task)
             created_tasks.append(task)
@@ -3186,6 +3305,10 @@ def start_task_workflow(project_id, task_id):
         if not success:
             return jsonify({'error': message}), 400
         
+        # Track who updated the task
+        task.task_last_update_user = current_user.id
+        task.updated_at = datetime.utcnow()
+        
         # Log the activity
         SharingActivityLog.log_activity(
             project_id=project_id,
@@ -3233,6 +3356,10 @@ def commit_task_workflow(project_id, task_id):
         
         if not success:
             return jsonify({'error': message}), 400
+        
+        # Track who updated the task
+        task.task_last_update_user = current_user.id
+        task.updated_at = datetime.utcnow()
         
         # Log the activity
         SharingActivityLog.log_activity(
@@ -3282,6 +3409,9 @@ def complete_task_workflow(project_id, task_id):
         if not success:
             return jsonify({'error': message}), 400
         
+        # Track who completed the task
+        task.task_complete_user = current_user.id
+        
         # Log the activity
         SharingActivityLog.log_activity(
             project_id=project_id,
@@ -3306,6 +3436,35 @@ def complete_task_workflow(project_id, task_id):
         db.session.rollback()
         return jsonify({'error': f'Failed to complete task workflow: {str(e)}'}), 500
 
+@app.route('/api/projects/<int:project_id>/tasks/<int:task_id>/read', methods=['POST'])
+@login_required
+def track_task_read(project_id, task_id):
+    """Track when a task is read/viewed (e.g., when dropdown is opened)"""
+    from services.permission_manager import PermissionManager
+    
+    try:
+        project = Project.query.get_or_404(project_id)
+        task = Task.query.get_or_404(task_id)
+        
+        # Check if user has permission to view tasks and task belongs to project
+        if not PermissionManager.has_permission(current_user.id, project_id, 'view_tasks') or task.project_id != project_id:
+            return jsonify({'error': 'Insufficient permissions to view task'}), 403
+        
+        # Track the read event
+        task.task_last_read_date = datetime.utcnow()
+        task.task_last_read_user = current_user.id
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Task read tracked',
+            'task_id': task_id
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to track task read: {str(e)}'}), 500
+
 @app.route('/api/projects/<int:project_id>/tasks/<int:task_id>/workflow/reset', methods=['POST'])
 @login_required
 def reset_task_workflow(project_id, task_id):
@@ -3329,6 +3488,10 @@ def reset_task_workflow(project_id, task_id):
         
         if not success:
             return jsonify({'error': message}), 400
+        
+        # Track who updated the task
+        task.task_last_update_user = current_user.id
+        task.updated_at = datetime.utcnow()
         
         # Log the activity
         SharingActivityLog.log_activity(
@@ -3399,6 +3562,7 @@ def batch_create_child_tasks(project_id):
                 description=task_data.get('description', ''),
                 project_id=project_id,
                 owner_id=current_user.id,
+                task_create_user=current_user.id,  # Track who created the task
                 parent_id=parent_id,
                 priority=task_data.get('priority', 'medium'),
                 size=task_data.get('size', 'medium'),
@@ -4664,6 +4828,14 @@ def ai_chat():
         
         data = request.get_json()
         message = data.get('message', '').strip()
+        project_id = data.get('project_id')
+        
+        # Convert project_id to int if it's provided (handles string from JSON)
+        if project_id is not None:
+            try:
+                project_id = int(project_id)
+            except (ValueError, TypeError):
+                project_id = None
         
         if not message:
             return jsonify({'error': 'Message is required'}), 400
@@ -4674,11 +4846,11 @@ def ai_chat():
         # Initialize conversational AI
         ai_assistant = ConversationalAI()
         
-        # Build comprehensive user context
-        context = ai_assistant.build_user_context(user)
+        # Build comprehensive user context (filtered by project if provided)
+        context = ai_assistant.build_user_context(user, project_id=project_id)
         
         # Generate intelligent response
-        response = ai_assistant.generate_response(message, context)
+        response = ai_assistant.generate_response(message, context, project_id=project_id)
         
         return jsonify({'response': response})
         

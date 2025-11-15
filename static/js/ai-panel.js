@@ -170,6 +170,10 @@ document.addEventListener('DOMContentLoaded', function() {
         showTypingIndicator();
         
         try {
+            // Get project ID from the page if available
+            const projectElement = document.querySelector('[data-project-id]');
+            const projectId = projectElement ? parseInt(projectElement.dataset.projectId) : null;
+            
             // Send message to backend
             const response = await fetch('/api/ai-chat', {
                 method: 'POST',
@@ -178,6 +182,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
                 body: JSON.stringify({
                     message: message,
+                    project_id: projectId,
                     timestamp: new Date().toISOString()
                 })
             });

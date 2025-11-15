@@ -2469,6 +2469,18 @@
             chevronIcon.style.transform = 'rotate(180deg)';
             toggleButton.title = 'Hide Task Details';
             
+            // Track task read when dropdown is opened
+            fetch(`/api/projects/{{ project.id }}/tasks/${taskId}/read`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'same-origin'
+            }).catch(err => {
+                // Silently fail if tracking doesn't work
+                console.debug('Task read tracking failed:', err);
+            });
+            
             // Add smooth animation
             detailsContent.style.maxHeight = '0';
             detailsContent.style.overflow = 'hidden';

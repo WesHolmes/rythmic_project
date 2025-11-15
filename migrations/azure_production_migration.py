@@ -63,6 +63,10 @@ class AzureProductionMigration:
                 if not self._run_task_flagging_migration(db):
                     return False
                 
+                # Step 2.8: Run task tracking migration
+                if not self._run_task_tracking_migration(db):
+                    return False
+                
                 # Step 3: Create optimized indexes
                 if not self._create_indexes(db.engine):
                     return False
@@ -630,6 +634,255 @@ class AzureProductionMigration:
             logger.error(f"Task flagging migration failed: {str(e)}")
             self._log_step(f"Task flagging migration failed: {str(e)}")
             return False
+    
+    def _run_task_tracking_migration(self, db) -> bool:
+        """Run task tracking migration to add tracking columns for conversational AI"""
+        try:
+            logger.info("Running task tracking migration...")
+            
+            from sqlalchemy import inspect, text
+            
+            # Check if the columns already exist
+            inspector = inspect(db.engine)
+            columns = [col['name'] for col in inspector.get_columns('task')]
+            
+            new_columns = [
+                'task_create_user',
+                'task_last_read_date',
+                'task_last_read_user',
+                'task_last_update_user',
+                'task_delete_date',
+                'task_delete_user',
+                'task_complete_user'
+            ]
+            existing_columns = [col for col in new_columns if col in columns]
+            
+            if existing_columns:
+                logger.info(f"Task tracking columns already exist: {existing_columns}")
+                self._log_step(f"Task tracking columns already exist: {existing_columns}")
+                return True
+            
+            columns_to_add = [col for col in new_columns if col not in columns]
+            
+            if not columns_to_add:
+                logger.info("All task tracking columns already exist. Migration not needed.")
+                self._log_step("All task tracking columns already exist")
+                return True
+            
+            # Detect database type
+            db_type = str(db.engine.dialect.name).lower()
+            
+            # Add the new columns
+            with db.engine.connect() as conn:
+                # Add task_create_user column
+                if 'task_create_user' not in columns:
+                    try:
+                        if db_type == 'sqlite':
+                            conn.execute(text("""
+                                ALTER TABLE task 
+                                ADD task_create_user INTEGER REFERENCES user(id)
+                            """))
+                        else:  # SQL Server / Azure SQL
+                            conn.execute(text("""
+                                ALTER TABLE task 
+                                ADD task_create_user INTEGER REFERENCES [user](id)
+                            """))
+                        logger.info("✓ Added 'task_create_user' column")
+                    except Exception as e:
+                        logger.warning(f"Could not add 'task_create_user' column: {e}")
+                
+                # Add task_last_read_date column
+                if 'task_last_read_date' not in columns:
+                    try:
+                        if db_type == 'sqlite':
+                            conn.execute(text("""
+                                ALTER TABLE task 
+                                ADD task_last_read_date DATETIME
+                            """))
+                        else:  # SQL Server / Azure SQL
+                            conn.execute(text("""
+                                ALTER TABLE task 
+                                ADD task_last_read_date DATETIME2
+                            """))
+                        logger.info("✓ Added 'task_last_read_date' column")
+                    except Exception as e:
+                        logger.warning(f"Could not add 'task_last_read_date' column: {e}")
+                
+                # Add task_last_read_user column
+                if 'task_last_read_user' not in columns:
+                    try:
+                        if db_type == 'sqlite':
+                            conn.execute(text("""
+                                ALTER TABLE task 
+                                ADD task_last_read_user INTEGER REFERENCES user(id)
+                            """))
+                        else:  # SQL Server / Azure SQL
+                            conn.execute(text("""
+                                ALTER TABLE task 
+                                ADD task_last_read_user INTEGER REFERENCES [user](id)
+                            """))
+                        logger.info("✓ Added 'task_last_read_user' column")
+                    except Exception as e:
+                        logger.warning(f"Could not add 'task_last_read_user' column: {e}")
+                
+                # Add task_last_update_user column
+                if 'task_last_update_user' not in columns:
+                    try:
+                        if db_type == 'sqlite':
+                            conn.execute(text("""
+                                ALTER TABLE task 
+                                ADD task_last_update_user INTEGER REFERENCES user(id)
+                            """))
+                        else:  # SQL Server / Azure SQL
+                            conn.execute(text("""
+                                ALTER TABLE task 
+                                ADD task_last_update_user INTEGER REFERENCES [user](id)
+                            """))
+                        logger.info("✓ Added 'task_last_update_user' column")
+                    except Exception as e:
+                        logger.warning(f"Could not add 'task_last_update_user' column: {e}")
+                
+                # Add task_delete_date column
+                if 'task_delete_date' not in columns:
+                    try:
+                        if db_type == 'sqlite':
+                            conn.execute(text("""
+                                ALTER TABLE task 
+                                ADD task_delete_date DATETIME
+                            """))
+                        else:  # SQL Server / Azure SQL
+                            conn.execute(text("""
+                                ALTER TABLE task 
+                                ADD task_delete_date DATETIME2
+                            """))
+                        logger.info("✓ Added 'task_delete_date' column")
+                    except Exception as e:
+                        logger.warning(f"Could not add 'task_delete_date' column: {e}")
+                
+                # Add task_delete_user column
+                if 'task_delete_user' not in columns:
+                    try:
+                        if db_type == 'sqlite':
+                            conn.execute(text("""
+                                ALTER TABLE task 
+                                ADD task_delete_user INTEGER REFERENCES user(id)
+                            """))
+                        else:  # SQL Server / Azure SQL
+                            conn.execute(text("""
+                                ALTER TABLE task 
+                                ADD task_delete_user INTEGER REFERENCES [user](id)
+                            """))
+                        logger.info("✓ Added 'task_delete_user' column")
+                    except Exception as e:
+                        logger.warning(f"Could not add 'task_delete_user' column: {e}")
+                
+                # Add task_complete_user column
+                if 'task_complete_user' not in columns:
+                    try:
+                        if db_type == 'sqlite':
+                            conn.execute(text("""
+                                ALTER TABLE task 
+                                ADD task_complete_user INTEGER REFERENCES user(id)
+                            """))
+                        else:  # SQL Server / Azure SQL
+                            conn.execute(text("""
+                                ALTER TABLE task 
+                                ADD task_complete_user INTEGER REFERENCES [user](id)
+                            """))
+                        logger.info("✓ Added 'task_complete_user' column")
+                    except Exception as e:
+                        logger.warning(f"Could not add 'task_complete_user' column: {e}")
+                
+                # Backfill existing tasks with reasonable defaults
+                try:
+                    # Set task_create_user to owner_id
+                    conn.execute(text("""
+                        UPDATE task 
+                        SET task_create_user = owner_id 
+                        WHERE task_create_user IS NULL
+                    """))
+                    logger.info("✓ Backfilled task_create_user for existing tasks")
+                    
+                    # Set task_complete_user for completed tasks
+                    conn.execute(text("""
+                        UPDATE task 
+                        SET task_complete_user = owner_id 
+                        WHERE task_complete_user IS NULL 
+                        AND (status = 'completed' OR workflow_status = 'completed' OR completed_at IS NOT NULL)
+                    """))
+                    logger.info("✓ Backfilled task_complete_user for completed tasks")
+                    
+                    # Set task_last_update_user for updated tasks
+                    conn.execute(text("""
+                        UPDATE task 
+                        SET task_last_update_user = owner_id 
+                        WHERE task_last_update_user IS NULL 
+                        AND updated_at IS NOT NULL 
+                        AND created_at IS NOT NULL
+                        AND updated_at != created_at
+                    """))
+                    logger.info("✓ Backfilled task_last_update_user for updated tasks")
+                except Exception as e:
+                    logger.warning(f"Could not backfill task tracking data: {e}")
+                
+                conn.commit()
+            
+            # Verify columns were added
+            inspector = inspect(db.engine)
+            updated_columns = [col['name'] for col in inspector.get_columns('task')]
+            
+            added_columns = [col for col in new_columns if col in updated_columns]
+            
+            if len(added_columns) == len(columns_to_add):
+                logger.info(f"✓ Task tracking migration completed! Added {len(added_columns)} columns.")
+                self._log_step(f"Added task tracking columns: {added_columns}")
+                
+                # Add indexes for performance
+                self._add_task_tracking_indexes(db.engine)
+                
+                return True
+            else:
+                logger.warning(f"Task tracking migration partially failed. Added {len(added_columns)}/{len(columns_to_add)} columns.")
+                self._log_step(f"Task tracking migration partially failed")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Task tracking migration failed: {str(e)}")
+            self._log_step(f"Task tracking migration failed: {str(e)}")
+            return False
+    
+    def _add_task_tracking_indexes(self, engine):
+        """Add database indexes for task tracking queries"""
+        try:
+            from sqlalchemy import text
+            
+            # Index for task tracking lookups
+            with engine.connect() as conn:
+                indexes_to_create = [
+                    ('idx_task_create_user', 'task_create_user'),
+                    ('idx_task_last_read_user', 'task_last_read_user'),
+                    ('idx_task_last_update_user', 'task_last_update_user'),
+                    ('idx_task_complete_user', 'task_complete_user'),
+                    ('idx_task_last_read_date', 'task_last_read_date'),
+                ]
+                
+                for index_name, column_name in indexes_to_create:
+                    try:
+                        conn.execute(text(f"""
+                            CREATE INDEX {index_name} 
+                            ON task({column_name})
+                        """))
+                        logger.info(f"✓ Added index for {column_name}")
+                    except Exception as e:
+                        if "already exists" not in str(e).lower() and "duplicate" not in str(e).lower():
+                            logger.warning(f"Could not create {index_name}: {e}")
+                
+                conn.commit()
+            
+            logger.info("✓ Task tracking indexes created successfully")
+            
+        except Exception as e:
+            logger.warning(f"Some task tracking indexes may not have been created: {str(e)}")
     
     def _create_indexes(self, engine) -> bool:
         """Create optimized indexes for Azure database"""

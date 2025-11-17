@@ -1,0 +1,83 @@
+<!-- Reminders Panel -->
+<div id="reminders-panel" class="fixed top-20 right-4 z-40 transition-all duration-300 ease-in-out" style="max-height: calc(100vh - 5rem);">
+    <!-- Toggle Button -->
+    <div id="reminders-panel-toggle" class="w-14 h-14 bg-gradient-to-br from-orange-500 to-red-600 rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:scale-110 transition-transform duration-200 relative">
+        <i class="fas fa-bell text-white text-xl"></i>
+        <span id="reminders-badge" class="hidden absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold">0</span>
+    </div>
+    
+    <!-- Panel Container (hidden by default) -->
+    <div id="reminders-panel-container" class="hidden mt-4 w-96 h-[600px] bg-gray-900 rounded-2xl shadow-2xl flex flex-col overflow-hidden" style="background-color: #111827;">
+        <!-- Header -->
+        <div class="bg-gradient-to-r from-orange-600 to-red-600 px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <i class="fas fa-bell text-white text-lg"></i>
+                <h3 class="text-white font-semibold">Reminders</h3>
+            </div>
+            <button id="reminders-panel-close" class="text-white hover:text-gray-200 transition-colors">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <!-- Reminders Content Area -->
+        <div id="reminders-content" class="flex-1 overflow-y-auto p-4 space-y-4" style="background-color: #1f2937; max-height: calc(600px - 140px);">
+            <!-- Loading State -->
+            <div id="reminders-loading" class="flex items-center justify-center py-8">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+            </div>
+            
+            <!-- Empty State -->
+            <div id="reminders-empty" class="hidden text-center py-8">
+                <i class="fas fa-check-circle text-green-400 text-4xl mb-3"></i>
+                <p class="text-gray-300 text-sm">No reminders at this time!</p>
+                <p class="text-gray-400 text-xs mt-2">All tasks are up to date.</p>
+            </div>
+            
+            <!-- AI Reminder Message -->
+            <div id="ai-reminder-message" class="hidden bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/30 rounded-lg p-3 mb-4">
+                <div class="flex items-start space-x-2">
+                    <i class="fas fa-robot text-blue-400 mt-1"></i>
+                    <div class="flex-1">
+                        <p id="ai-reminder-text" class="text-sm text-gray-100"></p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Stale Tasks Section -->
+            <div id="stale-tasks-section" class="hidden">
+                <div class="flex items-center justify-between mb-2">
+                    <h4 class="text-orange-400 font-semibold text-sm flex items-center">
+                        <i class="fas fa-clock mr-2"></i>
+                        Stale Tasks
+                    </h4>
+                    <span id="stale-tasks-count" class="text-xs text-gray-400 bg-orange-500/20 px-2 py-1 rounded-full">0</span>
+                </div>
+                <div id="stale-tasks-list" class="space-y-2">
+                    <!-- Stale tasks will be inserted here -->
+                </div>
+            </div>
+            
+            <!-- At-Risk Tasks Section -->
+            <div id="at-risk-tasks-section" class="hidden">
+                <div class="flex items-center justify-between mb-2">
+                    <h4 class="text-red-400 font-semibold text-sm flex items-center">
+                        <i class="fas fa-exclamation-triangle mr-2"></i>
+                        At-Risk Tasks
+                    </h4>
+                    <span id="at-risk-tasks-count" class="text-xs text-gray-400 bg-red-500/20 px-2 py-1 rounded-full">0</span>
+                </div>
+                <div id="at-risk-tasks-list" class="space-y-2">
+                    <!-- At-risk tasks will be inserted here -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div class="p-4 border-t border-gray-700" style="background-color: #374151;">
+            <button id="refresh-reminders" class="w-full px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors duration-200">
+                <i class="fas fa-sync-alt mr-2"></i>Refresh
+            </button>
+        </div>
+    </div>
+</div>
+

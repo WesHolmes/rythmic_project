@@ -3572,4 +3572,10 @@
         }
     }
 </script>
+
+<!-- Include Reminders Panel (only for project owners) -->
+{% if user_permissions.is_owner %}
+{% include 'reminders_panel.html' %}
+{% endif %}
+
 {% endblock %}

@@ -4819,6 +4819,113 @@ def ai_insights():
             'error': str(e)
         }), 500
 
+@app.route('/api/projects/<int:project_id>/reminders', methods=['GET'])
+@login_required
+def project_reminders(project_id):
+    """Get reminders for stale and at-risk tasks in a specific project (for project owners)"""
+    try:
+        from services.permission_manager import PermissionManager
+        
+        user = current_user
+        project = Project.query.get_or_404(project_id)
+        
+        # Only project owners can see reminders
+        if project.owner_id != user.id:
+            return jsonify({
+                'stale_tasks': [],
+                'at_risk_tasks': [],
+                'ai_reminder': None,
+                'message': 'Only project owners can view reminders'
+            }), 403
+        
+        now = datetime.utcnow()
+        thirty_days_ago = now - timedelta(days=30)
+        
+        # Find stale tasks (not updated in 30 days and not completed)
+        stale_tasks = Task.query.filter(
+            Task.project_id == project_id,
+            Task.status != 'completed',
+            Task.workflow_status != 'completed',
+            Task.updated_at < thirty_days_ago
+        ).all()
+        
+        # Find at-risk tasks (due soon or overdue)
+        at_risk_tasks = Task.query.filter(
+            Task.project_id == project_id,
+            Task.status != 'completed',
+            Task.workflow_status != 'completed',
+            Task.end_date.isnot(None)
+        ).all()
+        
+        # Filter tasks that are due within 7 days or overdue
+        at_risk_list = []
+        for task in at_risk_tasks:
+            if task.end_date:
+                days_until_due = (task.end_date - now.date()).days
+                if days_until_due <= 7:  # Due within 7 days or already overdue
+                    at_risk_list.append(task)
+        
+        # Format stale tasks
+        stale_tasks_data = []
+        for task in stale_tasks:
+            days_stale = (now - task.updated_at).days if task.updated_at else 0
+            stale_tasks_data.append({
+                'id': task.id,
+                'title': task.title,
+                'status': task.status,
+                'workflow_status': task.workflow_status,
+                'days_stale': days_stale,
+                'updated_at': task.updated_at.isoformat() if task.updated_at else None,
+                'url': url_for('edit_task', project_id=project_id, task_id=task.id)
+            })
+        
+        # Format at-risk tasks
+        at_risk_tasks_data = []
+        for task in at_risk_list:
+            days_until_due = (task.end_date - now.date()).days if task.end_date else 0
+            is_overdue = days_until_due < 0
+            at_risk_tasks_data.append({
+                'id': task.id,
+                'title': task.title,
+                'status': task.status,
+                'workflow_status': task.workflow_status,
+                'end_date': task.end_date.isoformat() if task.end_date else None,
+                'days_until_due': days_until_due,
+                'is_overdue': is_overdue,
+                'url': url_for('edit_task', project_id=project_id, task_id=task.id)
+            })
+        
+        # Generate AI reminder message
+        ai_reminder = None
+        if stale_tasks_data or at_risk_tasks_data:
+            reminder_parts = []
+            if stale_tasks_data:
+                reminder_parts.append(f"{len(stale_tasks_data)} task{'s' if len(stale_tasks_data) != 1 else ''} haven't been updated in 30+ days")
+            if at_risk_tasks_data:
+                overdue_count = len([t for t in at_risk_tasks_data if t['is_overdue']])
+                due_soon_count = len([t for t in at_risk_tasks_data if not t['is_overdue']])
+                if overdue_count > 0:
+                    reminder_parts.append(f"{overdue_count} task{'s' if overdue_count != 1 else ''} {'are' if overdue_count != 1 else 'is'} overdue")
+                if due_soon_count > 0:
+                    reminder_parts.append(f"{due_soon_count} task{'s' if due_soon_count != 1 else ''} {'are' if due_soon_count != 1 else 'is'} due within 7 days")
+            
+            ai_reminder = f"⚠️ Reminder: {'; '.join(reminder_parts)}. Consider reviewing these tasks to keep your project on track."
+        
+        return jsonify({
+            'stale_tasks': stale_tasks_data,
+            'at_risk_tasks': at_risk_tasks_data,
+            'ai_reminder': ai_reminder
+        })
+        
+    except Exception as e:
+        print(f"Project reminders error: {e}")
+        return jsonify({
+            'stale_tasks': [],
+            'at_risk_tasks': [],
+            'ai_reminder': None,
+            'error': str(e)
+        }), 500
+
 @app.route('/api/ai-chat', methods=['POST'])
 @login_required
 def ai_chat():
